@@ -70,62 +70,59 @@ export function SignInForm({
                 <KeyRound />
                 {ssoLabel ?? <T>Continue with single sign-on</T>}
               </Button>
-              <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="h-px flex-1 bg-border" />
-                <T>Emergency access</T>
-                <span className="h-px flex-1 bg-border" />
-              </div>
+              {error ? <p className="mt-4 text-sm text-red-500">{error}</p> : null}
             </>
-          ) : null}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void form.handleSubmit();
-            }}
-            className="space-y-4"
-          >
-            <form.Field name="email">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label htmlFor={field.name}>
-                    <T>Email</T>
-                  </Label>
-                  <Input
-                    id={field.name}
-                    type="email"
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    required
-                    autoFocus
-                  />
-                </div>
-              )}
-            </form.Field>
-            <form.Field name="password">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label htmlFor={field.name}>
-                    <T>Password</T>
-                  </Label>
-                  <Input
-                    id={field.name}
-                    type="password"
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    required
-                  />
-                </div>
-              )}
-            </form.Field>
-            {error ? <p className="text-sm text-red-500">{error}</p> : null}
-            <form.Subscribe selector={(s) => s.isSubmitting}>
-              {(isSubmitting) => (
-                <Button type="submit" disabled={isSubmitting} className="w-full">
-                  {isSubmitting ? <T>Signing in…</T> : <T>Sign in</T>}
-                </Button>
-              )}
-            </form.Subscribe>
-          </form>
+          ) : (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void form.handleSubmit();
+              }}
+              className="space-y-4"
+            >
+              <form.Field name="email">
+                {(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor={field.name}>
+                      <T>Email</T>
+                    </Label>
+                    <Input
+                      id={field.name}
+                      type="email"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      required
+                      autoFocus
+                    />
+                  </div>
+                )}
+              </form.Field>
+              <form.Field name="password">
+                {(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor={field.name}>
+                      <T>Password</T>
+                    </Label>
+                    <Input
+                      id={field.name}
+                      type="password"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+              </form.Field>
+              {error ? <p className="text-sm text-red-500">{error}</p> : null}
+              <form.Subscribe selector={(s) => s.isSubmitting}>
+                {(isSubmitting) => (
+                  <Button type="submit" disabled={isSubmitting} className="w-full">
+                    {isSubmitting ? <T>Signing in…</T> : <T>Sign in</T>}
+                  </Button>
+                )}
+              </form.Subscribe>
+            </form>
+          )}
         </CardContent>
       </Card>
     </main>

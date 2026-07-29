@@ -2,27 +2,33 @@ import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { sso } from "@better-auth/sso";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { schema } from "@offerkit/db";
 import { sendEmail } from "@offerkit/core/email";
-import { logger } from "@offerkit/core/observability";
 import { db } from "./db.ts";
 
 let cached: ReturnType<typeof build> | undefined;
-const log = logger.child({ component: "auth" });
 
-function normalizeClaimList(value: unknown): string[] {
-  if (typeof value === "string") return [value];
-  if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is string => typeof entry === "string");
-}
+export const samlAccountLinkingPolicy = {
+  enabled: true,
+  requireLocalEmailVerified: false,
+} as const;
 
-export function samlRoleFromGroups(
-  value: unknown,
+export const samlDomainVerification = { enabled: true } as const;
+
+export function samlRoleForUser(
+  currentRole: string | null | undefined,
+  groupsClaim: unknown,
   adminGroup: string,
-): "admin" | "member" | undefined {
-  if (value === undefined || value === null) return undefined;
-  return normalizeClaimList(value).includes(adminGroup) ? "admin" : "member";
+): "admin" | "member" {
+  if (currentRole === "admin") return "admin";
+  const groups =
+    typeof groupsClaim === "string"
+      ? [groupsClaim]
+      : Array.isArray(groupsClaim)
+        ? groupsClaim.filter((entry): entry is string => typeof entry === "string")
+        : [];
+  return groups.includes(adminGroup) ? "admin" : "member";
 }
 
 function build() {
@@ -65,7 +71,9 @@ function build() {
       },
     }),
     emailAndPassword: {
-      enabled: true,
+      // SAML is the sole interactive login method in SSO deployments.
+      // Password auth remains available for self-hosted instances without SAML.
+      enabled: !samlEnabled,
       disableSignUp: true,
       requireEmailVerification: false,
       sendResetPassword: async ({ user, url }) => {
@@ -77,6 +85,11 @@ function build() {
         });
       },
     },
+    account: samlEnabled
+      ? {
+          accountLinking: samlAccountLinkingPolicy,
+        }
+      : undefined,
     user: {
       additionalFields: {
         role: { type: "string", required: false, defaultValue: "member", input: false },
@@ -108,6 +121,10 @@ function build() {
     plugins: samlEnabled
       ? [
           sso({
+            // The configured default provider is controlled by the deployment.
+            // Domain verification marks it as trusted only when the signed
+            // assertion email matches SAML_EMAIL_DOMAIN.
+            domainVerification: samlDomainVerification,
             defaultSSO: [
               {
                 providerId: samlProviderId,
@@ -152,33 +169,22 @@ function build() {
             provisionUser: async ({ user, userInfo }) => {
               const existing = await db().query.user.findFirst({
                 where: eq(schema.user.id, user.id),
-                columns: { disabledAt: true },
+                columns: { disabledAt: true, role: true },
               });
               if (existing?.disabledAt) {
                 throw new APIError("FORBIDDEN", { message: "This account is disabled" });
               }
-              // A pending password change belongs to the local credential, and
-              // signing in through the IdP does not satisfy it. Only clear the
-              // gate for users who have no password to change.
-              const credential = await db().query.account.findFirst({
-                where: and(
-                  eq(schema.account.userId, user.id),
-                  eq(schema.account.providerId, "credential"),
-                ),
-                columns: { id: true },
-              });
-              const role = samlRoleFromGroups(userInfo["groups"], samlAdminGroup);
-              if (role === undefined) {
-                log.warn(
-                  { userId: user.id, groupsAttribute: samlGroupsAttribute },
-                  "SAML assertion omitted the configured groups claim; preserving the existing role",
-                );
-              }
+              // An SSO login must never demote an existing administrator. New
+              // users are promoted only through the configured IdP admin group.
               await db()
                 .update(schema.user)
                 .set({
-                  ...(role === undefined ? {} : { role }),
-                  ...(credential ? {} : { mustChangePassword: false }),
+                  role: samlRoleForUser(
+                    existing?.role,
+                    userInfo["groups"],
+                    samlAdminGroup,
+                  ),
+                  mustChangePassword: false,
                   updatedAt: new Date(),
                 })
                 .where(eq(schema.user.id, user.id));

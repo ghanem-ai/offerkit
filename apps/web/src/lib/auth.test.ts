@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { auth, samlRoleFromGroups } from "./auth";
+import {
+  auth,
+  samlAccountLinkingPolicy,
+  samlDomainVerification,
+  samlRoleForUser,
+} from "./auth";
 
 describe("SAML configuration", () => {
   const samlVars = [
@@ -47,20 +52,26 @@ describe("SAML dependency hardening", () => {
   });
 });
 
-describe("samlRoleFromGroups", () => {
-  it.each([
-    ["platform-admins", "admin"],
-    [["engineering", "platform-admins"], "admin"],
-    ["engineering", "member"],
-    [[], "member"],
-  ] as const)("maps a present group claim %#", (claim, expected) => {
-    expect(samlRoleFromGroups(claim, "platform-admins")).toBe(expected);
+describe("SAML account linking", () => {
+  it("trusts only domain-verified SSO providers", () => {
+    expect(samlDomainVerification).toEqual({ enabled: true });
   });
 
-  it.each([undefined, null])(
-    "preserves the existing role when the group claim is absent (%s)",
-    (claim) => {
-      expect(samlRoleFromGroups(claim, "platform-admins")).toBeUndefined();
-    },
-  );
+  it("allows an SSO identity to replace the deployment's legacy local login", () => {
+    expect(samlAccountLinkingPolicy).toEqual({
+      enabled: true,
+      requireLocalEmailVerified: false,
+    });
+  });
+
+  it("never demotes an existing administrator during SSO provisioning", () => {
+    expect(samlRoleForUser("admin", ["team"], "platform-admins")).toBe("admin");
+  });
+
+  it("promotes new users only through the configured IdP group", () => {
+    expect(samlRoleForUser("member", ["platform-admins"], "platform-admins")).toBe(
+      "admin",
+    );
+    expect(samlRoleForUser("member", ["team"], "platform-admins")).toBe("member");
+  });
 });
