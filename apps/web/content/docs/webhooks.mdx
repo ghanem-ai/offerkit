@@ -65,4 +65,4 @@ Successful deliveries record `responseStatus` + `responseBody`; failures record 
 - `voucher.stack.redeemed`
 - `voucher.validation_failed` — emitted whenever `POST /vouchers/{code}/validate` returns `valid: false`; the payload carries `reason`, `message`, and the voucher/customer identifiers. These rows are pruned after `EVENT_RETENTION_DAYS` (default 30).
 
-More event types land alongside future features. Subscribe to `*` to receive everything.
+More event types land alongside future features. Subscribe to `*` to receive everything except `voucher.validation_failed`, which is high-volume telemetry and only fans out to webhooks that list it explicitly.
