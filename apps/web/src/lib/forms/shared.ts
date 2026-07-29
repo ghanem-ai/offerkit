@@ -51,14 +51,10 @@ function datePartsInTimeZone(date: Date, timeZone: string): Record<string, numbe
 
 export function fromIsoToLocalDateTime(
   iso: string | null | undefined,
-  timeZone?: string,
+  timeZone = "UTC",
 ): string {
   if (!iso) return "";
   const date = new Date(iso);
-  if (!timeZone) {
-    const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-    return offsetDate.toISOString().slice(0, 16);
-  }
   const parts = datePartsInTimeZone(date, timeZone);
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${String(parts["year"])}-${pad(parts["month"] ?? 0)}-${pad(parts["day"] ?? 0)}T${pad(parts["hour"] ?? 0)}:${pad(parts["minute"] ?? 0)}`;
@@ -93,8 +89,8 @@ function resolveZonedIso(local: string, timeZone: string): string | null {
 }
 
 /** False when the local time falls in a DST spring-forward gap for the zone. */
-export function localDateTimeExistsInZone(local: string, timeZone?: string): boolean {
-  if (!local || !timeZone) return true;
+export function localDateTimeExistsInZone(local: string, timeZone = "UTC"): boolean {
+  if (!local) return true;
   try {
     return resolveZonedIso(local, timeZone) !== null;
   } catch {
@@ -102,9 +98,8 @@ export function localDateTimeExistsInZone(local: string, timeZone?: string): boo
   }
 }
 
-export function toIsoOrUndefined(local: string, timeZone?: string): string | undefined {
+export function toIsoOrUndefined(local: string, timeZone = "UTC"): string | undefined {
   if (!local) return undefined;
-  if (!timeZone) return new Date(local).toISOString();
   const iso = resolveZonedIso(local, timeZone);
   if (iso === null) {
     throw new RangeError("The selected local time does not exist in this timezone");

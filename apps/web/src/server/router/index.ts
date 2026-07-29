@@ -29,23 +29,24 @@ const health = os.health.handler(() => ({
 
 const ready = os.ready.handler(async () => {
   let dbOk = false;
-  let workerOk = false;
+  let workerOk: boolean | null = null;
   try {
     await db().execute(sql`select 1`);
     dbOk = true;
   } catch {
-    dbOk = false;
+    // Keep the initial false value; readiness reports the failed check.
   }
-  try {
-    const workerHealthUrl =
-      process.env["WORKER_READINESS_URL"] ?? "http://offerkit-worker:9091/ready";
-    const response = await fetch(workerHealthUrl, {
-      signal: AbortSignal.timeout(2_000),
-      cache: "no-store",
-    });
-    workerOk = response.ok;
-  } catch {
-    workerOk = false;
+  const workerHealthUrl = process.env["WORKER_READINESS_URL"];
+  if (workerHealthUrl) {
+    try {
+      const response = await fetch(workerHealthUrl, {
+        signal: AbortSignal.timeout(2_000),
+        cache: "no-store",
+      });
+      workerOk = response.ok;
+    } catch {
+      workerOk = false;
+    }
   }
   return {
     status: dbOk ? ("ok" as const) : ("degraded" as const),

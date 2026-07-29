@@ -27,13 +27,13 @@ export const contract = {
     .route({ method: "GET", path: "/health", summary: "Liveness probe" })
     .output(healthOutput),
   ready: oc
-    .route({ method: "GET", path: "/ready", summary: "Readiness probe (db + worker)" })
+    .route({ method: "GET", path: "/ready", summary: "Readiness probe (db + optional worker)" })
     .output(
       z.object({
         status: z.enum(["ok", "degraded"]),
         checks: z.object({
           db: z.boolean(),
-          worker: z.boolean(),
+          worker: z.boolean().nullable(),
         }),
       }),
     ),

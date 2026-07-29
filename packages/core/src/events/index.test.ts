@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Db } from "@offerkit/db";
 import { verifyWebhook } from "@offerkit/sdk";
-import { deliverWebhook, mintWebhookSecret } from "./index.ts";
+import {
+  deliverWebhook,
+  mintWebhookSecret,
+  pruneEvents,
+  webhookMatchesEvent,
+} from "./index.ts";
 
 const ENCRYPTION_KEY = "test-webhook-encryption-key-with-at-least-32-characters";
 
@@ -112,5 +117,52 @@ describe("webhook secret delivery", () => {
       error: "webhook signing secret predates encrypted storage; recreate the webhook",
     });
     expect(deadUpdate?.["updatedAt"]).toBeInstanceOf(Date);
+  });
+});
+
+describe("event fan-out and retention", () => {
+  it("can exclude wildcard subscriptions from caller-controlled telemetry", () => {
+    expect(webhookMatchesEvent(["*"], "voucher.validation_failed", false)).toBe(false);
+    expect(
+      webhookMatchesEvent(
+        ["voucher.validation_failed"],
+        "voucher.validation_failed",
+        false,
+      ),
+    ).toBe(true);
+    expect(webhookMatchesEvent(["*"], "order.created")).toBe(true);
+  });
+
+  it("prunes old telemetry in bounded batches", async () => {
+    const candidateBatches = [
+      [{ id: "00000000-0000-4000-8000-000000000001" }, { id: "00000000-0000-4000-8000-000000000002" }],
+      [{ id: "00000000-0000-4000-8000-000000000003" }, { id: "00000000-0000-4000-8000-000000000004" }],
+    ];
+    const limit = vi
+      .fn()
+      .mockResolvedValueOnce(candidateBatches[0])
+      .mockResolvedValueOnce(candidateBatches[1]);
+    const returning = vi
+      .fn()
+      .mockResolvedValueOnce(candidateBatches[0])
+      .mockResolvedValueOnce(candidateBatches[1]);
+    const fakeDb = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            orderBy: vi.fn(() => ({ limit })),
+          })),
+        })),
+      })),
+      delete: vi.fn(() => ({
+        where: vi.fn(() => ({ returning })),
+      })),
+    } as unknown as Db;
+
+    await expect(
+      pruneEvents(fakeDb, 30, { batchSize: 2, maxBatches: 2 }),
+    ).resolves.toEqual({ deleted: 4 });
+    expect(limit).toHaveBeenCalledTimes(2);
+    expect(returning).toHaveBeenCalledTimes(2);
   });
 });

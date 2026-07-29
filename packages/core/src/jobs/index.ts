@@ -5,7 +5,7 @@ import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { logger } from "../observability/index.ts";
 
 const log = logger.child({ component: "jobs" });
-const DEFAULT_QUEUE_NAME = "offerkit:jobs";
+const DEFAULT_QUEUE_NAME = "offerkit-jobs";
 
 export interface JobContext {
   jobId: string;

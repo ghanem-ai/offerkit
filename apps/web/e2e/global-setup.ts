@@ -71,24 +71,26 @@ async function globalSetup(config: FullConfig): Promise<void> {
     await page.getByLabel(/current password/i).fill(ADMIN_PASSWORD);
     await page.getByLabel("New password", { exact: true }).fill(ROTATED_PASSWORD);
     await page.getByLabel(/confirm new password/i).fill(ROTATED_PASSWORD);
-    const [changeResponse, clearResponse] = await Promise.all([
-      page.waitForResponse(
-        (r) => r.url().includes("/api/auth/change-password"),
-        { timeout: 15_000 },
-      ),
-      page.waitForResponse(
+    const changeResponsePromise = page.waitForResponse(
+      (r) => r.url().includes("/api/auth/change-password"),
+      { timeout: 15_000 },
+    );
+    const clearResponsePromise = page
+      .waitForResponse(
         (r) => r.url().includes("/api/v1/me/clear-must-change-password"),
         { timeout: 15_000 },
-      ),
-      page
-        .getByRole("button", {
-          name: /change password|update password|update|save/i,
-        })
-        .click(),
-    ]);
+      )
+      .catch(() => undefined);
+    await page
+      .getByRole("button", {
+        name: /change password|update password|update|save/i,
+      })
+      .click();
+    const changeResponse = await changeResponsePromise;
     if (!changeResponse.ok()) throw new Error("Admin password rotation failed");
 
-    if (!clearResponse.ok()) {
+    const clearResponse = await clearResponsePromise;
+    if (!clearResponse?.ok()) {
       await page.goto("/sign-in");
       if (!(await signInWithPassword(page, ROTATED_PASSWORD))) {
         throw new Error("Could not sign in after rotating the admin password");

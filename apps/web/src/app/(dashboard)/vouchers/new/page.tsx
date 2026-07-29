@@ -15,15 +15,20 @@ export default function NewVoucherPage() {
   const search = useSearchParams();
   const campaignId = search.get("campaignId") ?? "";
 
-  const { data: campaign } = useQuery({
+  const { data: campaign, isLoading: campaignLoading } = useQuery({
     queryKey: ["campaigns", campaignId],
     queryFn: () => ovx().campaigns.get({ params: { id: campaignId } }),
     enabled: campaignId !== "",
   });
+  const { data: workspace, isLoading: workspaceLoading } = useQuery({
+    queryKey: ["workspace"],
+    queryFn: () => ovx().workspace.get(),
+  });
+  const timeZone = campaign?.timezone ?? workspace?.defaultTimezone ?? "UTC";
 
   const create = useMutation({
     mutationFn: async (state: VoucherFormState) => {
-      const input = voucherFormToCreateInput(state, campaign?.timezone);
+      const input = voucherFormToCreateInput(state, timeZone);
       if (state.customerExternalId) {
         const resolved = await ovx().customers.upsert({
           externalId: state.customerExternalId,
@@ -42,6 +47,21 @@ export default function NewVoucherPage() {
     },
   });
 
+  if ((campaignId && campaignLoading) || (!campaignId && workspaceLoading)) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        <T>Loading…</T>
+      </p>
+    );
+  }
+  if (campaignId && !campaign) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        <T>Campaign not found.</T>
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <header>
@@ -53,7 +73,7 @@ export default function NewVoucherPage() {
         </p>
       </header>
       <VoucherForm
-        timeZone={campaign?.timezone}
+        timeZone={timeZone}
         key={`${campaignId}:${campaign?.type ?? "default"}`}
         mode="create"
         initial={{

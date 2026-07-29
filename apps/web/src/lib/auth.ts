@@ -5,14 +5,24 @@ import { sso } from "@better-auth/sso";
 import { eq } from "drizzle-orm";
 import { schema } from "@offerkit/db";
 import { sendEmail } from "@offerkit/core/email";
+import { logger } from "@offerkit/core/observability";
 import { db } from "./db.ts";
 
 let cached: ReturnType<typeof build> | undefined;
+const log = logger.child({ component: "auth" });
 
 function normalizeClaimList(value: unknown): string[] {
   if (typeof value === "string") return [value];
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+export function samlRoleFromGroups(
+  value: unknown,
+  adminGroup: string,
+): "admin" | "member" | undefined {
+  if (value === undefined || value === null) return undefined;
+  return normalizeClaimList(value).includes(adminGroup) ? "admin" : "member";
 }
 
 function build() {
@@ -28,10 +38,14 @@ function build() {
   }
   const samlProviderId = process.env["SAML_PROVIDER_ID"] ?? "authentik";
   const samlIssuer = process.env["SAML_SP_ENTITY_ID"] ?? baseURL;
+  const samlIdpEntityId =
+    process.env["SAML_IDP_ENTITY_ID"] ??
+    "https://auth.internal.ghanem.dev/application/saml/offerkit/metadata/";
   const samlEntryPoint =
     process.env["SAML_IDP_SSO_URL"] ??
-    "https://auth.internal.ghanem.dev/application/saml/offerkit/";
+    "https://auth.internal.ghanem.dev/application/saml/offerkit/sso/binding/redirect/";
   const samlCallbackUrl = `${baseURL}/api/auth/sso/saml2/sp/acs/${samlProviderId}`;
+  const samlEmailDomain = process.env["SAML_EMAIL_DOMAIN"] ?? "ghanem.sa";
   const samlGroupsAttribute =
     process.env["SAML_GROUPS_ATTRIBUTE"] ?? "http://schemas.xmlsoap.org/claims/Group";
   const samlAdminGroup = process.env["SAML_ADMIN_GROUP"] ?? "platform-admins";
@@ -97,11 +111,15 @@ function build() {
             defaultSSO: [
               {
                 providerId: samlProviderId,
-                domain: "ghanem.sa",
+                domain: samlEmailDomain,
                 samlConfig: {
                   issuer: samlIssuer,
                   entryPoint: samlEntryPoint,
                   cert: samlCertificate ?? "",
+                  idpMetadata: {
+                    entityID: samlIdpEntityId,
+                    cert: samlCertificate ?? "",
+                  },
                   callbackUrl: samlCallbackUrl,
                   idpInitiatedCallbackUrl: `${baseURL}/dashboard`,
                   audience: samlIssuer,
@@ -139,11 +157,20 @@ function build() {
               if (existing?.disabledAt) {
                 throw new APIError("FORBIDDEN", { message: "This account is disabled" });
               }
-              const groups = normalizeClaimList(userInfo["groups"]);
-              const role = groups.includes(samlAdminGroup) ? "admin" : "member";
+              const role = samlRoleFromGroups(userInfo["groups"], samlAdminGroup);
+              if (role === undefined) {
+                log.warn(
+                  { userId: user.id, groupsAttribute: samlGroupsAttribute },
+                  "SAML assertion omitted the configured groups claim; preserving the existing role",
+                );
+              }
               await db()
                 .update(schema.user)
-                .set({ role, mustChangePassword: false, updatedAt: new Date() })
+                .set({
+                  ...(role === undefined ? {} : { role }),
+                  mustChangePassword: false,
+                  updatedAt: new Date(),
+                })
                 .where(eq(schema.user.id, user.id));
             },
           }),

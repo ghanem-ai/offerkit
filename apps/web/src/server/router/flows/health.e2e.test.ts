@@ -5,13 +5,15 @@ function stubWorkerReadiness(reachable: boolean): void {
   process.env["WORKER_READINESS_URL"] = "http://worker.test.local/ready";
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: RequestInfo | URL) => {
+    vi.fn((input: RequestInfo | URL) => {
       const url = input instanceof Request ? input.url : input.toString();
       if (url !== "http://worker.test.local/ready") {
         throw new Error(`unexpected fetch to ${url}`);
       }
       if (!reachable) throw new Error("worker unreachable");
-      return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
+      return Promise.resolve(
+        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+      );
     }),
   );
 }
@@ -26,6 +28,21 @@ describe("health and readiness probes", () => {
     const health = await rawRequest(new Request("http://test.local/api/v1/health"));
     expect(health.ok).toBe(true);
     await expect(health.json()).resolves.toMatchObject({ status: "ok" });
+  });
+
+  it("does not probe a guessed worker URL when none is configured", async () => {
+    if (TEST_DB_URL) process.env["DATABASE_URL"] = TEST_DB_URL;
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const ready = await rawRequest(new Request("http://test.local/api/v1/ready"));
+    expect(ready.ok).toBe(true);
+    const dbExpected = Boolean(TEST_DB_URL);
+    await expect(ready.json()).resolves.toMatchObject({
+      status: dbExpected ? "ok" : "degraded",
+      checks: { db: dbExpected, worker: null },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("reports a reachable worker without changing the aggregate status", async () => {

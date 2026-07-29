@@ -4,8 +4,11 @@ import { createRedisJobQueue, createJobRegistry } from "./index.ts";
 class FakeQueue {
   static calls: Array<{ name: string; data: unknown; opts: Record<string, unknown> }> = [];
   static jobs = new Map<string, unknown>();
+  static constructedNames: string[] = [];
 
-  constructor(public name: string, public options: Record<string, unknown>) {}
+  constructor(public name: string, public options: Record<string, unknown>) {
+    FakeQueue.constructedNames.push(name);
+  }
 
   add(name: string, data: unknown, opts: Record<string, unknown>): Promise<{ id?: string | number }> {
     FakeQueue.calls.push({ name, data, opts });
@@ -38,6 +41,18 @@ class FakeWorker {
 }
 
 describe("createRedisJobQueue", () => {
+  it("uses a BullMQ-safe default queue name", async () => {
+    FakeQueue.constructedNames = [];
+    const queue = createRedisJobQueue({
+      redisUrl: "redis://localhost:6379",
+      QueueCtor: FakeQueue,
+      WorkerCtor: FakeWorker,
+    });
+
+    expect(FakeQueue.constructedNames).toEqual(["offerkit-jobs"]);
+    await queue.close();
+  });
+
   it("enqueues jobs into BullMQ with delay and retry metadata", async () => {
     FakeQueue.calls = [];
     FakeQueue.jobs.clear();

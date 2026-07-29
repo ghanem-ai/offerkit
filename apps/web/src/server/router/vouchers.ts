@@ -6,6 +6,7 @@ import { contract } from "@offerkit/contract/router";
 import { generateUniqueCodes, BULK_INLINE_THRESHOLD } from "@offerkit/core/codes";
 import { emitEvent } from "@offerkit/core/events";
 import { enqueueJob } from "@offerkit/core/jobs";
+import { logger } from "@offerkit/core/observability";
 import { qualify, redeem, stackRedeem, validate } from "@offerkit/core/redemption";
 import type { RequestContext } from "@/server/context";
 import { db } from "@/lib/db";
@@ -18,6 +19,7 @@ import {
 } from "./helpers";
 
 const os = implement(contract).$context<RequestContext>();
+const log = logger.child({ component: "vouchers-router" });
 
 async function codeExists(code: string): Promise<boolean> {
   const row = await db().query.voucher.findFirst({
@@ -357,7 +359,7 @@ const bulk = os.vouchers.bulk
 
     const codes = await generateUniqueCodes(
       input.count,
-      (campaign.codeConfig ?? {}) as Record<string, unknown>,
+      campaign.codeConfig ?? {},
       codeExists,
     );
 
@@ -412,25 +414,33 @@ const validateProc = os.vouchers.validate
       order: input.body?.order,
     });
     if (!result.valid) {
-      const voucher = await db().query.voucher.findFirst({
-        where: and(
-          eq(schema.voucher.code, input.params.code),
-          isNull(schema.voucher.deletedAt),
-        ),
-        columns: { id: true },
-      });
-      await emitEvent(db(), {
-        type: "voucher.validation_failed",
-        ...(voucher ? { entityId: voucher.id } : {}),
-        payload: {
-          voucherId: voucher?.id ?? null,
-          voucherCode: input.params.code,
-          reason: result.code ?? "unknown",
-          message: result.message ?? null,
-          customerId: input.body?.customerId ?? null,
-          customerExternalId: input.body?.customerExternalId ?? null,
-        },
-      });
+      try {
+        const voucher = await db().query.voucher.findFirst({
+          where: and(
+            eq(schema.voucher.code, input.params.code),
+            isNull(schema.voucher.deletedAt),
+          ),
+          columns: { id: true },
+        });
+        await emitEvent(db(), {
+          type: "voucher.validation_failed",
+          includeWildcardSubscriptions: false,
+          ...(voucher ? { entityId: voucher.id } : {}),
+          payload: {
+            voucherId: voucher?.id ?? null,
+            voucherCode: input.params.code,
+            reason: result.code ?? "unknown",
+            message: result.message ?? null,
+            customerId: input.body?.customerId ?? null,
+            customerExternalId: input.body?.customerExternalId ?? null,
+          },
+        });
+      } catch (error) {
+        log.warn(
+          { err: error, voucherCode: input.params.code },
+          "failed to record voucher validation telemetry",
+        );
+      }
     }
     return {
       valid: result.valid,

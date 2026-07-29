@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { Db } from "@offerkit/db";
+import { eq, sql } from "drizzle-orm";
+import { schema, type Db } from "@offerkit/db";
 import {
   E2E_ENABLED,
   TEST_DB_URL,
@@ -12,6 +13,15 @@ import {
 let db: Db | undefined;
 let token: string | undefined;
 let prefix: string | undefined;
+
+function isRateLimitError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "TOO_MANY_REQUESTS"
+  );
+}
 
 beforeAll(async () => {
   if (!E2E_ENABLED || !TEST_DB_URL) return;
@@ -36,8 +46,20 @@ describe.skipIf(!E2E_ENABLED)("api key rate limiting", () => {
     const rejected = results.filter((result) => result.status === "rejected");
 
     expect(rejected.length).toBeGreaterThan(0);
-    expect(rejected[0]).toMatchObject({
-      reason: expect.objectContaining({ code: "TOO_MANY_REQUESTS" }),
-    });
+    expect(rejected.some((result) => isRateLimitError(result.reason))).toBe(true);
+
+    if (!db || !prefix) throw new Error("database setup failed");
+    const keyId = `key_${prefix}`;
+    const acceptedRows = await db
+      .select({ count: sql<number>`COALESCE(SUM(${schema.apiRateLimit.requestCount}), 0)` })
+      .from(schema.apiRateLimit)
+      .where(eq(schema.apiRateLimit.keyId, keyId));
+    expect(Number(acceptedRows[0]?.count ?? 0)).toBe(2);
+
+    await db
+      .update(schema.apiRateLimit)
+      .set({ windowStart: sql`${schema.apiRateLimit.windowStart} - interval '2 seconds'` })
+      .where(eq(schema.apiRateLimit.keyId, keyId));
+    await expect(client.customers.list({ limit: 1 })).resolves.toBeDefined();
   });
 });

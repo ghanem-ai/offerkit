@@ -193,7 +193,7 @@ describe("voucher form validation", () => {
       customerId: voucher.customerId,
     });
     expect(input.discount).not.toHaveProperty("amount");
-    expect(input.startDate).toBe(new Date(voucher.startDate).toISOString());
+    expect(input.startDate).toBe("2026-07-10T10:00:00.000Z");
   });
 
   it("preserves gift-card edit behavior while omitting discount fields", () => {
@@ -215,6 +215,15 @@ describe("voucher form validation", () => {
 });
 
 describe("timezone-aware date conversion", () => {
+  it("uses UTC instead of the browser timezone when no timezone is supplied", () => {
+    expect(toIsoOrUndefined("2026-07-29T10:30")).toBe(
+      "2026-07-29T10:30:00.000Z",
+    );
+    expect(fromIsoToLocalDateTime("2026-07-29T10:30:00.000Z")).toBe(
+      "2026-07-29T10:30",
+    );
+  });
+
   it("flags a local time that does not exist in the campaign timezone", () => {
     const result = campaignFormSchema.safeParse({
       ...campaign,

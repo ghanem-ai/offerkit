@@ -8,36 +8,59 @@ const log = logger.child({ component: "rate-limit" });
 
 export async function takeToken(keyId: string, rps: number): Promise<void> {
   const limit = Math.max(rps, 1);
-  const result = await db().execute<{
-    currentCount: number;
-    previousCount: number;
-    elapsed: number;
-  }>(sql`
-    WITH bumped AS (
+  const accepted = await db().transaction(async (tx) => {
+    // A separate statement is intentional: it guarantees the transaction has
+    // acquired the per-key lock before any usage rows are read.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${keyId}, 0))`);
+    const result = await tx.execute<{ accepted: boolean }>(sql`
+    WITH clock AS MATERIALIZED (
+      SELECT
+        observed_at,
+        date_trunc('second', observed_at) AS window_start
+      FROM (
+        SELECT clock_timestamp() AS observed_at
+      ) AS sampled
+    ),
+    usage AS (
+      SELECT
+        clock.window_start,
+        COALESCE(current_window.request_count, 0) AS current_count,
+        COALESCE(previous_window.request_count, 0) AS previous_count,
+        EXTRACT(EPOCH FROM (clock.observed_at - clock.window_start))::float8 AS elapsed
+      FROM clock
+      LEFT JOIN ${schema.apiRateLimit} AS current_window
+        ON current_window.key_id = ${keyId}
+        AND current_window.window_start = clock.window_start
+      LEFT JOIN ${schema.apiRateLimit} AS previous_window
+        ON previous_window.key_id = ${keyId}
+        AND previous_window.window_start = clock.window_start - interval '1 second'
+    ),
+    decision AS (
+      SELECT
+        window_start,
+        (
+          current_count +
+          previous_count * GREATEST(0, LEAST(1, 1 - elapsed)) +
+          1
+        ) <= ${limit} AS accepted
+      FROM usage
+    ),
+    bumped AS (
       INSERT INTO ${schema.apiRateLimit} (key_id, window_start, request_count)
-      VALUES (${keyId}, date_trunc('second', now()), 1)
+      SELECT ${keyId}, decision.window_start, 1
+      FROM decision
+      WHERE decision.accepted
       ON CONFLICT (key_id, window_start)
       DO UPDATE SET request_count = ${schema.apiRateLimit.requestCount} + 1
-      RETURNING key_id, window_start, request_count
+      RETURNING request_count
     )
-    SELECT
-      bumped.request_count AS "currentCount",
-      COALESCE(previous.request_count, 0) AS "previousCount",
-      EXTRACT(EPOCH FROM (now() - bumped.window_start))::float8 AS "elapsed"
-    FROM bumped
-    LEFT JOIN ${schema.apiRateLimit} AS previous
-      ON previous.key_id = bumped.key_id
-      AND previous.window_start = bumped.window_start - interval '1 second'
+    SELECT decision.accepted AS "accepted"
+    FROM decision
+    LEFT JOIN bumped ON true
   `);
-  const row = result.rows[0];
-  // The previous second still counts, weighted by how much of it overlaps the
-  // trailing second, so a burst straddling a window boundary cannot exceed the
-  // configured rate.
-  const overlap = row ? Math.max(0, Math.min(1, 1 - Number(row.elapsed))) : 0;
-  const used = row
-    ? Number(row.currentCount) + Number(row.previousCount) * overlap
-    : limit + 1;
-  if (used > limit) {
+    return result.rows[0]?.accepted === true;
+  });
+  if (!accepted) {
     throw new ORPCError("TOO_MANY_REQUESTS", {
       message: `Rate limit exceeded (${rps} rps)`,
     });

@@ -26,17 +26,38 @@ import type {
 
 const log = logger.child({ component: "redemption" });
 
-function stackRequestHash(input: StackRedeemInput): string {
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, canonicalize(entry)]),
+  );
+}
+
+export function stackRequestHash(input: StackRedeemInput): string {
+  const orderItems = input.order.items
+    ?.map((item) => canonicalize(item))
+    .sort((left, right) =>
+      JSON.stringify(left).localeCompare(JSON.stringify(right)),
+    );
   return createHash("sha256")
     .update(
-      JSON.stringify({
-        voucherCodes: [...new Set(input.voucherCodes)].sort(),
-        customerId: input.customerId ?? null,
-        customerExternalId: input.customerExternalId ?? null,
-        orderId: input.orderId ?? null,
-        externalOrderId: input.externalOrderId ?? null,
-        order: input.order,
-      }),
+      JSON.stringify(
+        canonicalize({
+          voucherCodes: [...new Set(input.voucherCodes)].sort(),
+          customerId: input.customerId ?? null,
+          customerExternalId: input.customerExternalId ?? null,
+          orderId: input.orderId ?? null,
+          externalOrderId: input.externalOrderId ?? null,
+          order: {
+            ...input.order,
+            ...(orderItems ? { items: orderItems } : {}),
+          },
+        }),
+      ),
     )
     .digest("hex");
 }

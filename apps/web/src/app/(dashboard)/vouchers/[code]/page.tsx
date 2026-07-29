@@ -41,10 +41,14 @@ export default function VoucherDetailPage({ params }: PageProps) {
     queryFn: () => ovx().vouchers.get({ params: { code } }),
   });
 
-  const { data: campaign } = useQuery({
+  const { data: campaign, isLoading: campaignLoading } = useQuery({
     queryKey: ["campaigns", data?.campaignId],
     queryFn: () => ovx().campaigns.get({ params: { id: data?.campaignId ?? "" } }),
     enabled: Boolean(data?.campaignId),
+  });
+  const { data: workspace } = useQuery({
+    queryKey: ["workspace"],
+    queryFn: () => ovx().workspace.get(),
   });
 
   const { data: customer } = useQuery({
@@ -55,7 +59,10 @@ export default function VoucherDetailPage({ params }: PageProps) {
 
   const update = useMutation({
     mutationFn: async (state: VoucherFormState) => {
-      const patch = voucherFormToUpdateInput(state, campaign?.timezone);
+      const patch = voucherFormToUpdateInput(
+        state,
+        campaign?.timezone ?? workspace?.defaultTimezone ?? "UTC",
+      );
       if (state.customerExternalId) {
         const resolved = await ovx().customers.upsert({
           externalId: state.customerExternalId,
@@ -124,8 +131,23 @@ export default function VoucherDetailPage({ params }: PageProps) {
         <T>Voucher not found.</T>
       </p>
     );
+  if (data.campaignId && campaignLoading) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        <T>Loading…</T>
+      </p>
+    );
+  }
+  if (data.campaignId && !campaign) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        <T>Campaign not found; voucher dates cannot be edited safely.</T>
+      </p>
+    );
+  }
 
   const discount = data.discount;
+  const timeZone = campaign?.timezone ?? workspace?.defaultTimezone ?? "UTC";
   const initial: VoucherFormState = {
     code: data.code,
     campaignId: data.campaignId ?? "",
@@ -144,8 +166,8 @@ export default function VoucherDetailPage({ params }: PageProps) {
     priority: data.priority,
     exclusive: data.exclusive,
     active: data.active,
-    startDate: fromIsoToLocalDateTime(data.startDate, campaign?.timezone),
-    endDate: fromIsoToLocalDateTime(data.endDate, campaign?.timezone),
+    startDate: fromIsoToLocalDateTime(data.startDate, timeZone),
+    endDate: fromIsoToLocalDateTime(data.endDate, timeZone),
   };
 
   const isGift = data.type === "GIFT_CARD";
@@ -190,7 +212,7 @@ export default function VoucherDetailPage({ params }: PageProps) {
       </header>
 
       <VoucherForm
-        timeZone={campaign?.timezone}
+        timeZone={timeZone}
         key={`${data.updatedAt}:${customer?.updatedAt ?? ""}`}
         mode="edit"
         initial={initial}
