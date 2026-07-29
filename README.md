@@ -27,7 +27,7 @@ OfferKit is open-source promotion infrastructure for coupons, gift cards, loyalt
 
 ## 🤖 Why OfferKit
 
-**Agent-first.** The MCP server is a first-class surface, not bolted on. Every mutating endpoint declares its risk level (`safe` / `mutating` / `destructive`) so LLM hosts can render the right confirmation. New procedures opt into MCP exposure declaratively via `.meta()` — no separate package to update.
+**Agent-first.** The MCP server is a first-class surface, not bolted on. Every endpoint carries a risk level (`safe` / `mutating` / `destructive`) so LLM hosts can render the right confirmation — inferred from the HTTP method, or declared explicitly via `.meta()`. Every contract procedure is exposed as an MCP tool automatically, so new procedures show up without a separate package to update.
 
 **Dev-friendly.** The typed SDK is derived directly from the oRPC contract, so client types stay in lockstep with the server with zero codegen. Strict TypeScript, linted against explicit `any`, with typed contracts at API boundaries. The `/docs` site lives inside the app (Fumadocs). Local-first dev with Docker compose, plus CI and lefthook quality gates.
 
@@ -48,7 +48,7 @@ OfferKit is open-source promotion infrastructure for coupons, gift cards, loyalt
 - 🔭 Observability — OpenTelemetry traces, metrics, logs out of the box
 - 🔐 Audit log — every mutation with actor, before/after, IP, user agent
 - 🪪 SAML single sign-on — optional; group-claim-driven admin role, users provisioned on first login
-- 🤖 MCP server — declaratively-exposed tools with risk-level metadata
+- 🤖 MCP server — every contract procedure exposed as a tool, with risk-level metadata
 - 📜 MIT — first-party packages throughout the monorepo
 
 ## 🚀 Quick Start

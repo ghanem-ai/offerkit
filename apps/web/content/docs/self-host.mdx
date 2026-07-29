@@ -142,7 +142,9 @@ Register OfferKit with the IdP using:
 - **ACS / reply URL** — `<OFFERKIT_PUBLIC_URL>/api/auth/sso/saml2/sp/acs/<SAML_PROVIDER_ID>`
 - **Entity ID / audience** — `SAML_SP_ENTITY_ID` (or `OFFERKIT_PUBLIC_URL`)
 - **SP metadata** — `<OFFERKIT_PUBLIC_URL>/api/auth/sso/saml2/sp/metadata?providerId=<SAML_PROVIDER_ID>`
-- **NameID format** — email address; the provider is registered for the `ghanem.sa` email domain
+- **NameID format** — email address
+
+The provider is registered under a fixed email domain, `ghanem.sa`, hardcoded in `apps/web/src/lib/auth.ts` with no environment override. It does not restrict which addresses may sign in — the sign-in button starts the flow by `SAML_PROVIDER_ID`, and the group claim decides the role — it is only used for email-domain-based provider lookup. If you self-host on another domain, edit that value in the source.
 
 Assertions must be signed (SHA-256 digests and signatures), carry timestamps, and arrive within a 5-minute clock skew. Every login re-reads the group claim named by `SAML_GROUPS_ATTRIBUTE`: members of `SAML_ADMIN_GROUP` get the `admin` role, everyone else is provisioned as `member`, so revoking group membership in the IdP downgrades the account on the next sign-in. `SAML_ALLOW_IDP_INITIATED=true` accepts unsolicited IdP-initiated responses, which skips `InResponseTo` replay validation — leave it off unless your IdP requires it.
 
