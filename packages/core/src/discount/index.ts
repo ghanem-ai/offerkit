@@ -46,7 +46,7 @@ export interface SkippedDiscount {
   voucherId: string;
   code: string;
   amount: 0;
-  reason: "exclusivity_lost" | "zero_after_running_total";
+  reason: "exclusivity_lost" | "zero_after_running_total" | "no_eligible_items";
 }
 
 export type BreakdownEntry = AppliedDiscount | SkippedDiscount;
@@ -78,6 +78,13 @@ function sortVouchers(vouchers: DiscountVoucher[]): DiscountVoucher[] {
     if (ca !== cb) return ca < cb ? -1 : 1;
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });
+}
+
+function isRestricted(voucher: DiscountVoucher): boolean {
+  return (
+    (voucher.appliesTo?.productIds?.length ?? 0) > 0 ||
+    (voucher.appliesTo?.collectionIds?.length ?? 0) > 0
+  );
 }
 
 function eligibleSubtotal(voucher: DiscountVoucher, order: DiscountOrder): number {
@@ -135,7 +142,10 @@ export function calculateDiscount(input: DiscountInput): DiscountResult {
         voucherId: voucher.id,
         code: voucher.code,
         amount: 0,
-        reason: "zero_after_running_total",
+        reason:
+          isRestricted(voucher) && eligibleSubtotal(voucher, order) === 0
+            ? "no_eligible_items"
+            : "zero_after_running_total",
       });
       continue;
     }

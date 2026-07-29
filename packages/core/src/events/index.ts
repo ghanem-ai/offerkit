@@ -6,7 +6,7 @@ import {
   randomBytes,
   timingSafeEqual,
 } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, lt } from "drizzle-orm";
 import { schema, type Db } from "@offerkit/db";
 import { logger } from "../observability/index.ts";
 import { enqueueJob } from "../jobs/index.ts";
@@ -67,6 +67,31 @@ export async function emitEvent(
     "event emitted",
   );
   return { eventId: row.id, deliveriesEnqueued: matching.length };
+}
+
+/**
+ * Validation failures are emitted straight off a caller-driven read path,
+ * so their volume is bounded only by API traffic. Insights only ever reads
+ * the last 30 days, so anything older is dropped on a recurring sweep.
+ */
+export const PRUNABLE_EVENT_TYPES = ["voucher.validation_failed"] as const;
+
+export async function pruneEvents(
+  db: Db,
+  retentionDays = Number(process.env["EVENT_RETENTION_DAYS"] ?? 30),
+): Promise<{ deleted: number }> {
+  const days = Number.isFinite(retentionDays) && retentionDays > 0 ? retentionDays : 30;
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60_000);
+  const deleted = await db
+    .delete(schema.event)
+    .where(
+      and(inArray(schema.event.type, [...PRUNABLE_EVENT_TYPES]), lt(schema.event.createdAt, cutoff)),
+    )
+    .returning({ id: schema.event.id });
+  if (deleted.length > 0) {
+    log.info({ deleted: deleted.length, retentionDays: days }, "pruned events");
+  }
+  return { deleted: deleted.length };
 }
 
 // ----- secret + signature helpers -----

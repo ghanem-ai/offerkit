@@ -84,6 +84,24 @@ describe("calculateDiscount — golden cases", () => {
     expect(result.finalOrder.amount).toBe(5_500);
   });
 
+  it("reports no_eligible_items when a restricted voucher hits an order without line items", () => {
+    const result = calculateDiscount({
+      order: { amount: 10_000, currency: "SAR" },
+      vouchers: [
+        {
+          id: "v1",
+          code: "ELIGIBLE50",
+          type: "PERCENTAGE",
+          percent: 5_000,
+          appliesTo: { productIds: ["eligible"] },
+        },
+      ],
+    });
+    expect(result.appliedDiscounts).toHaveLength(0);
+    expect(result.breakdown[0]).toMatchObject({ amount: 0, reason: "no_eligible_items" });
+    expect(result.finalOrder.amount).toBe(10_000);
+  });
+
   it("clamps order at zero — no negative totals", () => {
     const result = calculateDiscount({
       order: order(500),

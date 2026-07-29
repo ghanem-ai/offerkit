@@ -102,13 +102,20 @@ const create = os.users.create.use(requireSession).handler(async ({ context, inp
   requireAdmin(context.user.role);
   const password = generatePassword();
   const userId = crypto.randomUUID();
-  await db().insert(schema.user).values({
-    id: userId,
-    email: input.email,
-    name: input.name ?? input.email,
-    role: input.role,
-    mustChangePassword: true,
-  });
+  const [inserted] = await db()
+    .insert(schema.user)
+    .values({
+      id: userId,
+      email: input.email,
+      name: input.name ?? input.email,
+      role: input.role,
+      mustChangePassword: true,
+    })
+    .onConflictDoNothing({ target: schema.user.email })
+    .returning({ id: schema.user.id });
+  if (!inserted) {
+    throw new ORPCError("CONFLICT", { message: "A user with this email already exists" });
+  }
   await setUserPassword(userId, password);
   const row = await findUserOrThrow(userId);
   await sendEmail({

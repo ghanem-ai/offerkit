@@ -1,6 +1,6 @@
 import type { Db } from "@offerkit/db";
 import { enqueueJob, type JobRegistry } from "@offerkit/core/jobs";
-import { deliverWebhook } from "@offerkit/core/events";
+import { deliverWebhook, pruneEvents } from "@offerkit/core/events";
 import { expirePoints } from "@offerkit/core/loyalty";
 import { bulkGenerateCodes, type BulkCodesPayload } from "@offerkit/core/codes";
 import { logger } from "@offerkit/core/observability";
@@ -8,6 +8,7 @@ import { logger } from "@offerkit/core/observability";
 const log = logger.child({ component: "worker" });
 
 export const LOYALTY_EXPIRE_INTERVAL_MS = 24 * 60 * 60_000;
+export const EVENTS_PRUNE_INTERVAL_MS = 24 * 60 * 60_000;
 
 export function registerWorkerHandlers(registry: JobRegistry, db: Db): void {
   registry.register("webhook.deliver", async ({ jobId, payload }) => {
@@ -42,6 +43,17 @@ export function registerWorkerHandlers(registry: JobRegistry, db: Db): void {
       "loyalty.points.expire",
       {},
       { runAt: new Date(Date.now() + LOYALTY_EXPIRE_INTERVAL_MS) },
+    );
+  });
+
+  registry.register("events.prune", async ({ jobId }) => {
+    const result = await pruneEvents(db);
+    log.info({ jobId, deleted: result.deleted }, "events pruned");
+    await enqueueJob(
+      db,
+      "events.prune",
+      {},
+      { runAt: new Date(Date.now() + EVENTS_PRUNE_INTERVAL_MS) },
     );
   });
 }

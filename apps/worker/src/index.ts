@@ -72,6 +72,7 @@ async function bootstrap() {
   // Seed recurring jobs once. Their handlers reschedule themselves so
   // multiple replicas converge to a single pending row per type.
   await ensureScheduled(db, "loyalty.points.expire", new Date());
+  await ensureScheduled(db, "events.prune", new Date());
 }
 
 void bootstrap();

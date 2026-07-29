@@ -75,10 +75,11 @@ REDIS_URL=redis://...
 WEBHOOK_SECRET_ENCRYPTION_KEY=…
 ```
 
-Override the `worker` start command:
+Override the `worker` start command. The image entrypoint is already `node`,
+so the command is just the script path:
 
 ```bash
-node apps/worker/dist/index.js
+apps/worker/dist/index.js
 ```
 
 `worker` should not expose a public domain. Configure its healthcheck path as `/health`.
@@ -88,7 +89,7 @@ node apps/worker/dist/index.js
 Diploi should use the same deployment shape as Docker compose and Railway:
 
 - `web` — public HTTP component from `ghcr.io/offerkit/offerkit`, exposes `:3000`
-- `worker` — private/background component from `ghcr.io/offerkit/offerkit`, command `node apps/worker/dist/index.js`, exposes health on `:9091`
+- `worker` — private/background component from `ghcr.io/offerkit/offerkit`, command `apps/worker/dist/index.js`, exposes health on `:9091`
 - `postgres` — managed Postgres service wired into both components as `DATABASE_URL`
 - `redis` — Redis service wired into both components as `REDIS_URL`; BullMQ stores background jobs here
 

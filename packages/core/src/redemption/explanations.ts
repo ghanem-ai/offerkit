@@ -62,7 +62,9 @@ export function stackBreakdownExplanations(
       message:
         entry.reason === "exclusivity_lost"
           ? "Voucher skipped because an exclusive voucher was applied"
-          : "Voucher skipped because the running order total was already zero",
+          : entry.reason === "no_eligible_items"
+            ? "Voucher skipped because the order has no line items it applies to"
+            : "Voucher skipped because the running order total was already zero",
       voucherId: entry.voucherId,
       voucherCode: entry.code,
       details: { amount: entry.amount },

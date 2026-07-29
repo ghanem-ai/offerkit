@@ -21,6 +21,7 @@ import { voucherFormToUpdateInput } from "@/lib/forms/voucher";
 import { fromIsoToLocalDateTime } from "@/lib/forms/shared";
 import { formatMinorCurrency } from "@/lib/money";
 import { ovx } from "@/lib/sdk";
+import { VoucherStatusBadge } from "@/components/dashboard/voucher-status-badge";
 import { voucherStatus } from "@/lib/voucher-status";
 
 interface PageProps {
@@ -168,17 +169,7 @@ export default function VoucherDetailPage({ params }: PageProps) {
               <T>Updated {new Date(data.updatedAt).toLocaleString()}</T>
             </p>
           </div>
-          <Badge
-            variant={
-              status === "active"
-                ? "default"
-                : status === "expired"
-                  ? "destructive"
-                  : "secondary"
-            }
-          >
-            {gt(status)}
-          </Badge>
+          <VoucherStatusBadge status={status} />
         </div>
         <ConfirmDialog
           trigger={
@@ -199,6 +190,7 @@ export default function VoucherDetailPage({ params }: PageProps) {
       </header>
 
       <VoucherForm
+        timeZone={campaign?.timezone}
         key={`${data.updatedAt}:${customer?.updatedAt ?? ""}`}
         mode="edit"
         initial={initial}

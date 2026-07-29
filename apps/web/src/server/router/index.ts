@@ -48,7 +48,7 @@ const ready = os.ready.handler(async () => {
     workerOk = false;
   }
   return {
-    status: dbOk && workerOk ? ("ok" as const) : ("degraded" as const),
+    status: dbOk ? ("ok" as const) : ("degraded" as const),
     checks: { db: dbOk, worker: workerOk },
   };
 });

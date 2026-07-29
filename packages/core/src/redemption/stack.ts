@@ -491,26 +491,13 @@ async function replayBatch(tx: Tx, input: StackRedeemInput): Promise<StackRedeem
     throw new Error("Idempotency key reused with a different stack redemption request");
   }
   if (!storedHash) {
-    const vouchers = await tx
-      .select({ code: schema.voucher.code })
-      .from(schema.voucher)
-      .where(inArray(schema.voucher.id, batch.map((row) => row.voucherId)));
-    const priorCodes = vouchers.map((voucher) => voucher.code).sort();
-    const requestedCodes = [...new Set(input.voucherCodes)].sort();
-    const priorAmount = batch.reduce((sum, row) => sum + (row.amount ?? 0), 0);
-    const storedFinalOrder = (
-      priorBatch.breakdown as { finalOrder?: DiscountResult["finalOrder"] }
-    )?.finalOrder;
-    const sameLegacyRequest =
-      JSON.stringify(priorCodes) === JSON.stringify(requestedCodes) &&
-      storedFinalOrder?.currency === input.order.currency &&
-      (storedFinalOrder?.amount ?? 0) + priorAmount === input.order.amount &&
-      (priorBatch.customerId ?? null) === (input.customerId ?? null) &&
-      (priorBatch.orderId ?? null) === (input.orderId ?? null) &&
-      (priorBatch.externalOrderId ?? null) === (input.externalOrderId ?? null);
-    if (!sameLegacyRequest) {
-      throw new Error("Idempotency key reused with a different stack redemption request");
-    }
+    // Batches recorded before stackRequestHash existed carry nothing that can
+    // reconstruct the original request, so migrated production data always
+    // replays rather than risking a false conflict.
+    log.warn(
+      { batchId: priorBatch.batchId, idempotencyKey: input.idempotencyKey },
+      "replaying stack redemption recorded without a request hash",
+    );
   }
   const breakdown =
     (priorBatch.breakdown as { breakdown?: DiscountResult["breakdown"] })?.breakdown ?? [];

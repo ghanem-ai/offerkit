@@ -53,6 +53,7 @@ export default function NewVoucherPage() {
         </p>
       </header>
       <VoucherForm
+        timeZone={campaign?.timezone}
         key={`${campaignId}:${campaign?.type ?? "default"}`}
         mode="create"
         initial={{

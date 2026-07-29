@@ -74,21 +74,21 @@ export const customers = {
       summary: "List a customer's redemption history",
       inputStructure: "detailed",
     })
-    .input(z.object({ params: z.object({ id: z.string().uuid() }) }))
+    .input(
+      z.object({ params: z.object({ id: z.string().uuid() }), query: paginationInput }),
+    )
     .output(
-      z.object({
-        data: z.array(
-          z.object({
-            id: z.string().uuid(),
-            voucherCode: z.string(),
-            result: z.enum(["SUCCESS", "FAILURE", "ROLLBACK"]),
-            amount: z.number().int().nullable(),
-            currency: z.string().nullable(),
-            failureReason: z.string().nullable(),
-            externalOrderId: z.string().nullable(),
-            createdAt: z.string().datetime(),
-          }),
-        ),
-      }),
+      paginatedOutput(
+        z.object({
+          id: z.string().uuid(),
+          voucherCode: z.string(),
+          result: z.enum(["SUCCESS", "FAILURE", "ROLLBACK"]),
+          amount: z.number().int().nullable(),
+          currency: z.string().nullable(),
+          failureReason: z.string().nullable(),
+          externalOrderId: z.string().nullable(),
+          createdAt: z.string().datetime(),
+        }),
+      ),
     ),
 };

@@ -128,6 +128,7 @@ describe.skipIf(!E2E_ENABLED)("customers CRUD", () => {
 
     const history = await client.customers.redemptions({
       params: { id: fetched.id },
+      query: { limit: 20 },
     });
     expect(history.data).toEqual(
       expect.arrayContaining([

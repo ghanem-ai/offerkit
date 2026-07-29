@@ -56,9 +56,9 @@ const voucherFormFields = z.object({
   endDate: optionalLocalDateTime,
 });
 
-function withVoucherRules(mode: "create" | "edit") {
+function withVoucherRules(mode: "create" | "edit", timeZone?: string) {
   return voucherFormFields.superRefine((value, context) => {
-    validateDateRange(value, context);
+    validateDateRange(value, context, timeZone);
 
     if (value.customerId && value.customerExternalId) {
       context.addIssue({
@@ -97,6 +97,10 @@ function withVoucherRules(mode: "create" | "edit") {
       });
     }
   });
+}
+
+export function voucherFormSchema(mode: "create" | "edit", timeZone?: string) {
+  return withVoucherRules(mode, timeZone);
 }
 
 export const voucherCreateFormSchema = withVoucherRules("create");

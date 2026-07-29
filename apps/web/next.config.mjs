@@ -12,6 +12,11 @@ const withMDX = createMDX({});
 const nextConfig = {
   output: "standalone",
   outputFileTracingRoot: repoRoot,
+  // The libvips shared objects behind sharp are dlopen'd, so tracing misses
+  // them and image optimization fails at runtime with "Could not load sharp".
+  outputFileTracingIncludes: {
+    "**": ["../../node_modules/.pnpm/@img+sharp-libvips-*/**"],
+  },
   turbopack: {
     root: repoRoot,
   },

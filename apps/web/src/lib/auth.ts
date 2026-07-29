@@ -9,6 +9,12 @@ import { db } from "./db.ts";
 
 let cached: ReturnType<typeof build> | undefined;
 
+function normalizeClaimList(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
+
 function build() {
   const baseURL = process.env["OFFERKIT_PUBLIC_URL"] ?? "http://localhost:3000";
   const secret = process.env["BETTER_AUTH_SECRET"];
@@ -26,6 +32,10 @@ function build() {
     process.env["SAML_IDP_SSO_URL"] ??
     "https://auth.internal.ghanem.dev/application/saml/offerkit/";
   const samlCallbackUrl = `${baseURL}/api/auth/sso/saml2/sp/acs/${samlProviderId}`;
+  const samlGroupsAttribute =
+    process.env["SAML_GROUPS_ATTRIBUTE"] ?? "http://schemas.xmlsoap.org/claims/Group";
+  const samlAdminGroup = process.env["SAML_ADMIN_GROUP"] ?? "platform-admins";
+  const samlAllowIdpInitiated = process.env["SAML_ALLOW_IDP_INITIATED"] === "true";
 
   return betterAuth({
     baseURL,
@@ -107,20 +117,21 @@ function build() {
                     email:
                       "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
                     name: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name",
+                    extraFields: { groups: samlGroupsAttribute },
                   },
                 },
               },
             ],
             saml: {
               enableInResponseToValidation: true,
-              allowIdpInitiated: true,
+              allowIdpInitiated: samlAllowIdpInitiated,
               requireTimestamps: true,
               clockSkew: 5 * 60 * 1000,
               maxResponseSize: 256 * 1024,
               maxMetadataSize: 100 * 1024,
             },
             provisionUserOnEveryLogin: true,
-            provisionUser: async ({ user }) => {
+            provisionUser: async ({ user, userInfo }) => {
               const existing = await db().query.user.findFirst({
                 where: eq(schema.user.id, user.id),
                 columns: { disabledAt: true },
@@ -128,9 +139,11 @@ function build() {
               if (existing?.disabledAt) {
                 throw new APIError("FORBIDDEN", { message: "This account is disabled" });
               }
+              const groups = normalizeClaimList(userInfo["groups"]);
+              const role = groups.includes(samlAdminGroup) ? "admin" : "member";
               await db()
                 .update(schema.user)
-                .set({ role: "admin", mustChangePassword: false, updatedAt: new Date() })
+                .set({ role, mustChangePassword: false, updatedAt: new Date() })
                 .where(eq(schema.user.id, user.id));
             },
           }),

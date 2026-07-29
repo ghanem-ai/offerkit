@@ -4,7 +4,12 @@ import Link from "next/link";
 import { use } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { T, useGT } from "gt-next/client";
 import { toast } from "sonner";
 import { ArrowLeft, Trash2 } from "lucide-react";
@@ -14,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
+import { DateTime } from "@/components/dashboard/date-time";
 import { formatMinorCurrency } from "@/lib/money";
 import { ovx } from "@/lib/sdk";
 
@@ -31,15 +37,7 @@ interface CustomerData {
   updatedAt: string;
 }
 
-const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  timeZone: "UTC",
-  timeZoneName: "short",
-});
+const REDEMPTIONS_PAGE_SIZE = 20;
 
 function CustomerForm({
   data,
@@ -88,10 +86,23 @@ function CustomerForm({
   });
 
   const headerLabel = data.name ?? data.email ?? gt("(unnamed)");
-  const { data: redemptions, isLoading: redemptionsLoading } = useQuery({
+  const {
+    data: redemptionPages,
+    isLoading: redemptionsLoading,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
     queryKey: ["customers", data.id, "redemptions"],
-    queryFn: () => ovx().customers.redemptions({ params: { id: data.id } }),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      ovx().customers.redemptions({
+        params: { id: data.id },
+        query: { limit: REDEMPTIONS_PAGE_SIZE, ...(pageParam ? { cursor: pageParam } : {}) },
+      }),
+    getNextPageParam: (lastPage) => lastPage.next,
   });
+  const redemptions = redemptionPages?.pages.flatMap((page) => page.data);
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4">
@@ -107,7 +118,9 @@ function CustomerForm({
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">{headerLabel}</h1>
             <p className="text-sm text-muted-foreground">
-              <T>Created {dateTimeFormatter.format(new Date(data.createdAt))}</T>
+              <T>
+                Created <DateTime value={data.createdAt} />
+              </T>
             </p>
           </div>
         </div>
@@ -231,7 +244,7 @@ function CustomerForm({
             <p className="text-sm text-muted-foreground">
               <T>Loading…</T>
             </p>
-          ) : !redemptions || redemptions.data.length === 0 ? (
+          ) : !redemptions || redemptions.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               <T>This customer has no redemptions yet.</T>
             </p>
@@ -248,7 +261,7 @@ function CustomerForm({
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {redemptions.data.map((redemption) => (
+                  {redemptions.map((redemption) => (
                     <tr key={redemption.id}>
                       <td className="px-3 py-2 font-mono">{redemption.voucherCode}</td>
                       <td className="px-3 py-2">
@@ -280,7 +293,7 @@ function CustomerForm({
                         {redemption.externalOrderId ?? "-"}
                       </td>
                       <td className="px-3 py-2 text-right text-muted-foreground">
-                        {dateTimeFormatter.format(new Date(redemption.createdAt))}
+                        <DateTime value={redemption.createdAt} />
                       </td>
                     </tr>
                   ))}
@@ -288,6 +301,18 @@ function CustomerForm({
               </table>
             </div>
           )}
+          {hasNextPage ? (
+            <div className="mt-3 flex justify-center">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isFetchingNextPage}
+                onClick={() => void fetchNextPage()}
+              >
+                {isFetchingNextPage ? <T>Loading…</T> : <T>Load more</T>}
+              </Button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>

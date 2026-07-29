@@ -19,6 +19,7 @@ export type RedemptionExplanationCode =
   | RedemptionFailureCode
   | "exclusivity_lost"
   | "zero_after_running_total"
+  | "no_eligible_items"
   | "gift_card_stacking_unsupported";
 
 export interface RedemptionExplanation {

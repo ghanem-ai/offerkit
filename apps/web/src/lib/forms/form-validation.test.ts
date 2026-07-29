@@ -8,6 +8,7 @@ import {
 import {
   voucherCreateFormSchema,
   voucherEditFormSchema,
+  voucherFormSchema,
   voucherFormToCreateInput,
   voucherFormToUpdateInput,
   type VoucherFormState,
@@ -214,6 +215,29 @@ describe("voucher form validation", () => {
 });
 
 describe("timezone-aware date conversion", () => {
+  it("flags a local time that does not exist in the campaign timezone", () => {
+    const result = campaignFormSchema.safeParse({
+      ...campaign,
+      timezone: "America/New_York",
+      startDate: "2026-03-08T02:30",
+      endDate: "2026-03-08T04:30",
+    });
+
+    expect(result.success).toBe(false);
+    expect(issuePaths(result)).toContain("startDate");
+  });
+
+  it("flags a DST gap on the voucher form using the campaign timezone", () => {
+    const result = voucherFormSchema("create", "America/New_York").safeParse({
+      ...voucher,
+      startDate: "2026-03-08T02:30",
+      endDate: "2026-03-08T04:30",
+    });
+
+    expect(result.success).toBe(false);
+    expect(issuePaths(result)).toContain("startDate");
+  });
+
   it("converts Riyadh local time to UTC and back without shifting the form value", () => {
     const iso = toIsoOrUndefined("2026-07-29T10:30", "Asia/Riyadh");
 

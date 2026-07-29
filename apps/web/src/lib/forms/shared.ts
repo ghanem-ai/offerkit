@@ -64,10 +64,7 @@ export function fromIsoToLocalDateTime(
   return `${String(parts["year"])}-${pad(parts["month"] ?? 0)}-${pad(parts["day"] ?? 0)}T${pad(parts["hour"] ?? 0)}:${pad(parts["minute"] ?? 0)}`;
 }
 
-export function toIsoOrUndefined(local: string, timeZone?: string): string | undefined {
-  if (!local) return undefined;
-  if (!timeZone) return new Date(local).toISOString();
-
+function resolveZonedIso(local: string, timeZone: string): string | null {
   const parts = localDateTimeParts(local);
   const desiredUtc = Date.UTC(
     parts.year,
@@ -92,16 +89,43 @@ export function toIsoOrUndefined(local: string, timeZone?: string): string | und
     candidate = next;
   }
   const iso = new Date(candidate).toISOString();
-  if (fromIsoToLocalDateTime(iso, timeZone) !== local.slice(0, 16)) {
+  return fromIsoToLocalDateTime(iso, timeZone) === local.slice(0, 16) ? iso : null;
+}
+
+/** False when the local time falls in a DST spring-forward gap for the zone. */
+export function localDateTimeExistsInZone(local: string, timeZone?: string): boolean {
+  if (!local || !timeZone) return true;
+  try {
+    return resolveZonedIso(local, timeZone) !== null;
+  } catch {
+    return false;
+  }
+}
+
+export function toIsoOrUndefined(local: string, timeZone?: string): string | undefined {
+  if (!local) return undefined;
+  if (!timeZone) return new Date(local).toISOString();
+  const iso = resolveZonedIso(local, timeZone);
+  if (iso === null) {
     throw new RangeError("The selected local time does not exist in this timezone");
   }
   return iso;
 }
 
 export function validateDateRange(
-  value: { startDate: string; endDate: string },
+  value: { startDate: string; endDate: string; timezone?: string },
   context: z.RefinementCtx,
+  timeZone: string | undefined = value.timezone,
 ): void {
+  for (const field of ["startDate", "endDate"] as const) {
+    if (!localDateTimeExistsInZone(value[field], timeZone)) {
+      context.addIssue({
+        code: "custom",
+        path: [field],
+        message: "This local time does not exist in the selected timezone",
+      });
+    }
+  }
   if (
     value.startDate &&
     value.endDate &&

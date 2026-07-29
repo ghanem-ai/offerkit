@@ -22,6 +22,7 @@ import {
 import { type ApiListItem, type OfferKitClient, ovx } from "@/lib/sdk";
 import { campaignFormToUpdateInput } from "@/lib/forms/campaign";
 import { fromIsoToLocalDateTime } from "@/lib/forms/shared";
+import { VoucherStatusBadge } from "@/components/dashboard/voucher-status-badge";
 import { voucherStatus } from "@/lib/voucher-status";
 
 type VoucherRow = ApiListItem<OfferKitClient["vouchers"]["list"]>;
@@ -150,17 +151,7 @@ export default function CampaignDetailPage({ params }: PageProps) {
         const status = voucherStatus(row.original);
         return (
           <div className="text-right">
-            <Badge
-              variant={
-                status === "active"
-                  ? "default"
-                  : status === "expired"
-                    ? "destructive"
-                    : "secondary"
-              }
-            >
-              {gt(status)}
-            </Badge>
+            <VoucherStatusBadge status={status} />
           </div>
         );
       },

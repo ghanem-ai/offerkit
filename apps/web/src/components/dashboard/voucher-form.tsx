@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { T, useGT } from "gt-next/client";
 import { FormFieldErrors } from "@/components/dashboard/form-field-errors";
@@ -17,8 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
-  voucherCreateFormSchema,
-  voucherEditFormSchema,
+  voucherFormSchema,
   type VoucherFormState,
 } from "@/lib/forms/voucher";
 
@@ -173,20 +172,23 @@ export function VoucherForm({
   onSubmit,
   pending,
   mode,
+  timeZone,
 }: {
   initial: VoucherFormState;
   submitLabel: string;
   onSubmit: (state: VoucherFormState) => void;
   pending: boolean;
   mode: "create" | "edit";
+  timeZone?: string;
 }) {
   const gt = useGT();
+  const schema = useMemo(() => voucherFormSchema(mode, timeZone), [mode, timeZone]);
   const form = useForm({
     defaultValues: initial,
     validators: {
-      onMount: mode === "create" ? voucherCreateFormSchema : voucherEditFormSchema,
-      onChange: mode === "create" ? voucherCreateFormSchema : voucherEditFormSchema,
-      onSubmit: mode === "create" ? voucherCreateFormSchema : voucherEditFormSchema,
+      onMount: schema,
+      onChange: schema,
+      onSubmit: schema,
     },
     onSubmit: ({ value }) => onSubmit(value),
   });
