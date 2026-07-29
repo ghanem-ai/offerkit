@@ -7,19 +7,30 @@ const ADMIN_PASSWORD = process.env["E2E_ADMIN_PASSWORD"] ?? "changeme123";
 const ROTATED_PASSWORD =
   process.env["E2E_ADMIN_PASSWORD_ROTATED"] ?? `${ADMIN_PASSWORD}-rotated`;
 
+async function attemptSignIn(page: Page, password: string) {
+  await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
+  await page.getByLabel(/password/i).fill(password);
+  return await Promise.all([
+    page.waitForResponse(
+      (candidate) => candidate.url().includes("/api/auth/sign-in/email"),
+      { timeout: 30_000 },
+    ),
+    page.getByRole("button", { name: /sign in/i }).click(),
+  ]).then(([candidate]) => candidate);
+}
+
 async function signInWithPassword(
   page: Page,
   password: string,
 ): Promise<boolean> {
-  await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-  await page.getByLabel(/password/i).fill(password);
-  const response = await Promise.all([
-    page.waitForResponse(
-      (candidate) => candidate.url().includes("/api/auth/sign-in/email"),
-      { timeout: 15_000 },
-    ),
-    page.getByRole("button", { name: /sign in/i }).click(),
-  ]).then(([candidate]) => candidate);
+  let response = await attemptSignIn(page, password);
+  // Better Auth throttles /sign-in/email, so two suite runs in quick
+  // succession would otherwise fail setup outright with a 429.
+  for (let attempt = 0; response.status() === 429 && attempt < 4; attempt += 1) {
+    await page.waitForTimeout(15_000);
+    await page.goto("/sign-in");
+    response = await attemptSignIn(page, password);
+  }
   if (!response.ok()) return false;
   await page.waitForURL((url) => !url.pathname.endsWith("/sign-in"), {
     timeout: 15_000,
@@ -48,6 +59,13 @@ async function globalSetup(config: FullConfig): Promise<void> {
     signedIn = await signInWithPassword(page, ROTATED_PASSWORD);
   }
   if (!signedIn) throw new Error("Could not sign in with the seeded or rotated admin password");
+
+  // The must-change-password gate lives in the dashboard layout, so the
+  // redirect only settles once a full navigation to /dashboard completes.
+  // Reading page.url() straight after the client-side push races that
+  // redirect and would skip the rotation below.
+  await page.goto("/dashboard");
+  await page.waitForLoadState("networkidle");
 
   if (page.url().includes("/change-password")) {
     await page.getByLabel(/current password/i).fill(ADMIN_PASSWORD);
