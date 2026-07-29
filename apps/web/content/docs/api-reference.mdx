@@ -13,6 +13,10 @@ The API contract is defined once in `packages/contract` as Zod schemas + oRPC ro
 
 Send `Authorization: Bearer <api_key>`. Mint keys at **Settings → API keys**. Tokens look like `offerkit_<prefix12>_<secret40>`. Cookie sessions also work for browser callers (the dashboard uses them).
 
+## Rate limits
+
+A key with a requests-per-second limit is metered in Postgres, so the limit is shared by every `web` replica rather than per-process. Exceeding it returns `429` with `Rate limit exceeded (<rps> rps)`.
+
 ## Pagination
 
 List endpoints take `limit` (1-100, default 20) and an opaque `cursor`. The response is `{ data: [...], next?: "<cursor>" }`. The cursor is base64 of `(createdAt, id)`, stable under concurrent inserts.
@@ -45,5 +49,8 @@ Codes are a closed enum. Common ones:
 - `POST /vouchers/{code}/redemption` — single-voucher commit
 - `POST /redemptions/stack` — N-voucher atomic batch (priority sort + exclusivity short-circuit + per-voucher cap)
 - `POST /vouchers/{code}/transactions` — gift card balance ledger lookup
+- `GET /customers/{id}/redemptions` — paginated redemption history for one customer (voucher code, result, amount, currency, failure reason, external order id)
+
+A voucher scoped to products or collections discounts only the matching line items: the discount basis is the eligible subtotal, not the order total. If no line item matches, the voucher is skipped with reason `no_eligible_items` in the breakdown and explanations.
 
 See the [OpenAPI spec](/api/openapi.json) for every path, method, request schema, and response schema.

@@ -24,13 +24,15 @@ cp .env.example .env
 docker compose up -d
 ```
 
-`web` runs migrations before starting Next.js, so a fresh DB is fully migrated on first boot. The `worker` reclaims orphaned jobs on startup and re-seeds the recurring `loyalty.points.expire` sweep if it's missing.
+`web` runs migrations before starting Next.js, so a fresh DB is fully migrated on first boot. The `worker` reclaims orphaned jobs on startup and re-seeds the recurring `loyalty.points.expire` and `events.prune` sweeps if they're missing.
 
 Pin a release by setting `OFFERKIT_IMAGE_TAG`, for example:
 
 ```bash
 OFFERKIT_IMAGE_TAG=v0.1.0 docker compose up -d
 ```
+
+The runtime image is distroless: it runs as a non-root user, ships no shell or package manager, and its entrypoint is already `node`, so a service command is just a script path (`apps/worker/dist/index.js`).
 
 Image channels are intentionally narrow: `edge` follows the latest `main` commit, `latest` follows the newest stable version, and stable versions are published as both `v0.1.0` and `0.1.0`.
 
@@ -66,6 +68,8 @@ OFFERKIT_PUBLIC_URL=https://your-domain
 ```
 
 `web` uses the image default command and should expose a public domain. Configure its healthcheck path as `/api/v1/ready`.
+
+`/api/v1/ready` reports `checks.db` from a live query and `checks.worker` by calling the worker's own `/ready` endpoint. Point it at the worker with `WORKER_READINESS_URL` (default `http://offerkit-worker:9091/ready`); the worker check is informational and does not change the reported `status`.
 
 Set these variables on `worker`:
 
@@ -115,6 +119,38 @@ WORKER_HEALTH_PORT=9091
 ```
 
 Use the README's **Launch with Diploi** button if you want to start from Diploi's project wizard. After the first deploy, verify `/api/v1/ready` on `web`, `:9091/health` on `worker`, and sign in with the seeded admin account.
+
+## Single sign-on (SAML)
+
+Public sign-up is disabled: accounts are seeded from `ADMIN_EMAIL` / `ADMIN_PASSWORD`, created by an admin under **Settings → Users**, or provisioned on first SSO login. Disabled accounts (`disabledAt` set) cannot start a session by any path.
+
+Set `SAML_ENABLED=true` on `web` to make `/sign-in` lead with a **Continue with Ghanem SSO** button, with the email/password form kept as **Emergency access**. `SAML_IDP_CERTIFICATE` is required when SSO is enabled — the auth layer throws on first use without it.
+
+```
+SAML_ENABLED=true
+SAML_PROVIDER_ID=authentik                 # also the last path segment of the ACS URL
+SAML_IDP_SSO_URL=https://your-idp/application/saml/offerkit/
+SAML_IDP_CERTIFICATE=…                     # IdP signing certificate (PEM body)
+SAML_SP_ENTITY_ID=…                        # defaults to OFFERKIT_PUBLIC_URL
+SAML_GROUPS_ATTRIBUTE=http://schemas.xmlsoap.org/claims/Group
+SAML_ADMIN_GROUP=platform-admins
+SAML_ALLOW_IDP_INITIATED=false
+```
+
+Register OfferKit with the IdP using:
+
+- **ACS / reply URL** — `<OFFERKIT_PUBLIC_URL>/api/auth/sso/saml2/sp/acs/<SAML_PROVIDER_ID>`
+- **Entity ID / audience** — `SAML_SP_ENTITY_ID` (or `OFFERKIT_PUBLIC_URL`)
+- **SP metadata** — `<OFFERKIT_PUBLIC_URL>/api/auth/sso/saml2/sp/metadata?providerId=<SAML_PROVIDER_ID>`
+- **NameID format** — email address; the provider is registered for the `ghanem.sa` email domain
+
+Assertions must be signed (SHA-256 digests and signatures), carry timestamps, and arrive within a 5-minute clock skew. Every login re-reads the group claim named by `SAML_GROUPS_ATTRIBUTE`: members of `SAML_ADMIN_GROUP` get the `admin` role, everyone else is provisioned as `member`, so revoking group membership in the IdP downgrades the account on the next sign-in. `SAML_ALLOW_IDP_INITIATED=true` accepts unsolicited IdP-initiated responses, which skips `InResponseTo` replay validation — leave it off unless your IdP requires it.
+
+## Retention and rate limits
+
+API keys with a `rateLimitRps` limit are throttled through a shared Postgres sliding window (`api_rate_limit`), so the limit holds across every `web` replica. Expired window rows are swept opportunistically; no maintenance job is needed.
+
+Failed validations are recorded as `voucher.validation_failed` events to power the insights failure breakdown, and the recurring `events.prune` job deletes them after `EVENT_RETENTION_DAYS` (default 30). Other event types are never pruned.
 
 ## Observability
 

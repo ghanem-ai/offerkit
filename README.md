@@ -47,6 +47,7 @@ OfferKit is open-source promotion infrastructure for coupons, gift cards, loyalt
 - ⚙️ Background jobs — Redis/BullMQ by default, with a Postgres fallback when Redis is not configured
 - 🔭 Observability — OpenTelemetry traces, metrics, logs out of the box
 - 🔐 Audit log — every mutation with actor, before/after, IP, user agent
+- 🪪 SAML single sign-on — optional; group-claim-driven admin role, users provisioned on first login
 - 🤖 MCP server — declaratively-exposed tools with risk-level metadata
 - 📜 MIT — first-party packages throughout the monorepo
 
@@ -61,7 +62,7 @@ cp .env.example .env
 docker compose up
 ```
 
-Visit <http://localhost:3000> and sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`. The example defaults work locally; edit them before deploying. The first sign-in forces a password change.
+Visit <http://localhost:3000> and sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`. The example defaults work locally; edit them before deploying. The first sign-in forces a password change. Public sign-up is disabled — further accounts are created by an admin under **Settings → Users**, or provisioned from your IdP when [SAML SSO](apps/web/content/docs/self-host.mdx) is enabled.
 
 ## 🏠 Self-Host
 
