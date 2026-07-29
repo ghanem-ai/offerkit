@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { campaignCreateInput } from "@offerkit/contract";
 import {
   campaignFormSchema,
   campaignFormToCreateInput,
@@ -222,6 +223,21 @@ describe("timezone-aware date conversion", () => {
     expect(fromIsoToLocalDateTime("2026-07-29T10:30:00.000Z")).toBe(
       "2026-07-29T10:30",
     );
+  });
+
+  it("falls back to UTC instead of throwing on a stored timezone the engine rejects", () => {
+    expect(fromIsoToLocalDateTime("2026-07-29T10:30:00.000Z", "Bogus/Zone")).toBe(
+      "2026-07-29T10:30",
+    );
+    expect(toIsoOrUndefined("2026-07-29T10:30", "Bogus/Zone")).toBe(
+      "2026-07-29T10:30:00.000Z",
+    );
+  });
+
+  it("rejects an invalid campaign timezone at the contract boundary", () => {
+    const base = { name: "Summer sale", type: "DISCOUNT" as const, currency: "USD" };
+    expect(campaignCreateInput.safeParse({ ...base, timezone: "Bogus/Zone" }).success).toBe(false);
+    expect(campaignCreateInput.safeParse({ ...base, timezone: "Asia/Riyadh" }).success).toBe(true);
   });
 
   it("flags a local time that does not exist in the campaign timezone", () => {

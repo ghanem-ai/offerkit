@@ -14,9 +14,12 @@ import { Label } from "@/components/ui/label";
 export function SignInForm({
   ssoEnabled,
   ssoProviderId,
+  ssoLabel,
 }: {
   ssoEnabled: boolean;
   ssoProviderId: string;
+  /** Deployment-supplied button label; falls back to a generic translated one. */
+  ssoLabel?: string;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -65,7 +68,7 @@ export function SignInForm({
             <>
               <Button type="button" className="w-full" onClick={() => void signInWithSso()}>
                 <KeyRound />
-                <T>Continue with Ghanem SSO</T>
+                {ssoLabel ?? <T>Continue with single sign-on</T>}
               </Button>
               <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="h-px flex-1 bg-border" />

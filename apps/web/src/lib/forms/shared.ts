@@ -28,19 +28,31 @@ function localDateTimeParts(local: string): {
 
 const dateTimeFormatters = new Map<string, Intl.DateTimeFormat>();
 
+function buildFormatter(timeZone: string): Intl.DateTimeFormat {
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  };
+  try {
+    return new Intl.DateTimeFormat("en-CA", options);
+  } catch {
+    // Stored timezones predate validation and engines disagree on legacy
+    // abbreviations, so an unusable zone degrades to UTC instead of throwing
+    // out of a render.
+    return new Intl.DateTimeFormat("en-CA", { ...options, timeZone: "UTC" });
+  }
+}
+
 function datePartsInTimeZone(date: Date, timeZone: string): Record<string, number> {
   let formatter = dateTimeFormatters.get(timeZone);
   if (!formatter) {
-    formatter = new Intl.DateTimeFormat("en-CA", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hourCycle: "h23",
-    });
+    formatter = buildFormatter(timeZone);
     dateTimeFormatters.set(timeZone, formatter);
   }
   return formatter.formatToParts(date).reduce<Record<string, number>>((parts, part) => {

@@ -145,5 +145,15 @@ describe.skipIf(!E2E_ENABLED)("customers CRUD", () => {
     await expect(
       client.customers.getByExternalId({ params: { externalId } }),
     ).rejects.toThrow(/not found/i);
+
+    await expect(
+      client.customers.redemptions({ params: { id: fetched.id }, query: { limit: 20 } }),
+    ).rejects.toThrow(/not found/i);
+    await expect(
+      client.customers.redemptions({
+        params: { id: "11111111-1111-4111-8111-111111111111" },
+        query: { limit: 20 },
+      }),
+    ).rejects.toThrow(/not found/i);
   });
 });

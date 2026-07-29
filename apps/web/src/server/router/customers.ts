@@ -187,6 +187,12 @@ const remove = os.customers.delete
 const redemptions = os.customers.redemptions
   .use(requireSession)
   .handler(async ({ input }) => {
+    const customer = await db().query.customer.findFirst({
+      columns: { id: true },
+      where: and(eq(schema.customer.id, input.params.id), isNull(schema.customer.deletedAt)),
+    });
+    if (!customer) throw new ORPCError("NOT_FOUND", { message: "Customer not found" });
+
     const limit = input.query.limit;
     const cursor = decodeCursor(input.query.cursor);
     const filters = [eq(schema.redemption.customerId, input.params.id)];

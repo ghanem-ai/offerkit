@@ -41,9 +41,10 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
 // Tiny health server for Railway / docker healthcheck.
-// Honor PORT first (Railway and most PaaS assign it dynamically),
-// then WORKER_HEALTH_PORT for explicit overrides, then 9091 default.
-const healthPort = Number(process.env["PORT"] ?? process.env["WORKER_HEALTH_PORT"] ?? 9091);
+// WORKER_HEALTH_PORT wins as the explicit override (the shared runtime image
+// bakes PORT for the web app), then PORT for PaaS that assign it dynamically,
+// then the 9091 default.
+const healthPort = Number(process.env["WORKER_HEALTH_PORT"] ?? process.env["PORT"] ?? 9091);
 let lastHeartbeat = Date.now();
 let lastReclaimAt = 0;
 let reclaimInFlight = false;

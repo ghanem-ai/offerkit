@@ -7,7 +7,13 @@ import { generateUniqueCodes, BULK_INLINE_THRESHOLD } from "@offerkit/core/codes
 import { emitEvent } from "@offerkit/core/events";
 import { enqueueJob } from "@offerkit/core/jobs";
 import { logger } from "@offerkit/core/observability";
-import { qualify, redeem, stackRedeem, validate } from "@offerkit/core/redemption";
+import {
+  IdempotencyKeyConflictError,
+  qualify,
+  redeem,
+  stackRedeem,
+  validate,
+} from "@offerkit/core/redemption";
 import type { RequestContext } from "@/server/context";
 import { db } from "@/lib/db";
 import { requireSession } from "@/server/middleware/auth";
@@ -527,10 +533,7 @@ const stackRedeemProc = os.vouchers.stackRedeem
         idempotencyKey: input.idempotencyKey,
       });
     } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message === "Idempotency key reused with a different stack redemption request"
-      ) {
+      if (error instanceof IdempotencyKeyConflictError) {
         throw new ORPCError("CONFLICT", { message: error.message });
       }
       throw error;

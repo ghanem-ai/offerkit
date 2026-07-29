@@ -26,6 +26,19 @@ import type {
 
 const log = logger.child({ component: "redemption" });
 
+/**
+ * Thrown when an idempotency key is replayed with a payload that differs from
+ * the one it originally committed. Callers map this to a 409.
+ */
+export class IdempotencyKeyConflictError extends Error {
+  readonly code = "idempotency_key_conflict";
+
+  constructor() {
+    super("Idempotency key reused with a different stack redemption request");
+    this.name = "IdempotencyKeyConflictError";
+  }
+}
+
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value === null || typeof value !== "object") return value;
@@ -509,7 +522,7 @@ async function replayBatch(tx: Tx, input: StackRedeemInput): Promise<StackRedeem
   const batch = prior.filter((r) => r.batchId === priorBatch.batchId);
   const storedHash = (priorBatch.metadata as { stackRequestHash?: string }).stackRequestHash;
   if (storedHash && storedHash !== stackRequestHash(input)) {
-    throw new Error("Idempotency key reused with a different stack redemption request");
+    throw new IdempotencyKeyConflictError();
   }
   if (!storedHash) {
     // Batches recorded before stackRequestHash existed carry nothing that can

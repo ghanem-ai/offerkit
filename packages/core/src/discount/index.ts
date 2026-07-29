@@ -80,27 +80,34 @@ function sortVouchers(vouchers: DiscountVoucher[]): DiscountVoucher[] {
   });
 }
 
-function isRestricted(voucher: DiscountVoucher): boolean {
-  return (
-    (voucher.appliesTo?.productIds?.length ?? 0) > 0 ||
-    (voucher.appliesTo?.collectionIds?.length ?? 0) > 0
-  );
+interface Eligibility {
+  /** True when the voucher restricts itself to specific products/collections. */
+  restricted: boolean;
+  /** Order value the voucher may discount. */
+  subtotal: number;
 }
 
-function eligibleSubtotal(voucher: DiscountVoucher, order: DiscountOrder): number {
+// A restricted voucher can only be scoped when the caller sends line items.
+// Orders posted as `{ amount, currency }` carry no item detail, so the
+// restriction is unevaluable and the whole order amount stays eligible.
+function eligibilityOf(voucher: DiscountVoucher, order: DiscountOrder): Eligibility {
   const productIds = new Set(voucher.appliesTo?.productIds ?? []);
   const collectionIds = new Set(voucher.appliesTo?.collectionIds ?? []);
-  if (productIds.size === 0 && collectionIds.size === 0) return order.amount;
-  return (order.items ?? []).reduce((subtotal, item) => {
+  if (productIds.size === 0 && collectionIds.size === 0) {
+    return { restricted: false, subtotal: order.amount };
+  }
+  if (order.items === undefined) return { restricted: true, subtotal: order.amount };
+  const subtotal = order.items.reduce((total, item) => {
     const eligible =
       productIds.has(item.productId) ||
       (item.collectionId !== undefined && collectionIds.has(item.collectionId));
-    return eligible ? subtotal + item.quantity * item.unitPrice : subtotal;
+    return eligible ? total + item.quantity * item.unitPrice : total;
   }, 0);
+  return { restricted: true, subtotal };
 }
 
-function applyOne(voucher: DiscountVoucher, runningTotal: number, order: DiscountOrder): number {
-  const basis = Math.min(runningTotal, eligibleSubtotal(voucher, order));
+function applyOne(voucher: DiscountVoucher, runningTotal: number, eligibility: Eligibility): number {
+  const basis = Math.min(runningTotal, eligibility.subtotal);
   if (voucher.type === "AMOUNT") {
     const off = Math.min(voucher.amount ?? 0, basis);
     return Math.max(off, 0);
@@ -136,14 +143,15 @@ export function calculateDiscount(input: DiscountInput): DiscountResult {
       });
       continue;
     }
-    const off = applyOne(voucher, runningTotal, order);
+    const eligibility = eligibilityOf(voucher, order);
+    const off = applyOne(voucher, runningTotal, eligibility);
     if (off === 0) {
       breakdown.push({
         voucherId: voucher.id,
         code: voucher.code,
         amount: 0,
         reason:
-          isRestricted(voucher) && eligibleSubtotal(voucher, order) === 0
+          eligibility.restricted && eligibility.subtotal === 0
             ? "no_eligible_items"
             : "zero_after_running_total",
       });

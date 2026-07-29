@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { sso } from "@better-auth/sso";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { schema } from "@offerkit/db";
 import { sendEmail } from "@offerkit/core/email";
 import { logger } from "@offerkit/core/observability";
@@ -32,20 +32,20 @@ function build() {
     throw new Error("BETTER_AUTH_SECRET is not set");
   }
   const samlEnabled = process.env["SAML_ENABLED"] === "true";
-  const samlCertificate = process.env["SAML_IDP_CERTIFICATE"];
-  if (samlEnabled && !samlCertificate) {
-    throw new Error("SAML_IDP_CERTIFICATE is required when SAML_ENABLED=true");
-  }
+  // No deployment-specific defaults: a misconfigured self-host must fail
+  // loudly rather than silently point at somebody else's IdP.
+  const requireSamlEnv = (name: string): string => {
+    const value = process.env[name];
+    if (!value) throw new Error(`${name} is required when SAML_ENABLED=true`);
+    return value;
+  };
+  const samlCertificate = samlEnabled ? requireSamlEnv("SAML_IDP_CERTIFICATE") : "";
+  const samlIdpEntityId = samlEnabled ? requireSamlEnv("SAML_IDP_ENTITY_ID") : "";
+  const samlEntryPoint = samlEnabled ? requireSamlEnv("SAML_IDP_SSO_URL") : "";
+  const samlEmailDomain = samlEnabled ? requireSamlEnv("SAML_EMAIL_DOMAIN") : "";
   const samlProviderId = process.env["SAML_PROVIDER_ID"] ?? "authentik";
   const samlIssuer = process.env["SAML_SP_ENTITY_ID"] ?? baseURL;
-  const samlIdpEntityId =
-    process.env["SAML_IDP_ENTITY_ID"] ??
-    "https://auth.internal.ghanem.dev/application/saml/offerkit/metadata/";
-  const samlEntryPoint =
-    process.env["SAML_IDP_SSO_URL"] ??
-    "https://auth.internal.ghanem.dev/application/saml/offerkit/sso/binding/redirect/";
   const samlCallbackUrl = `${baseURL}/api/auth/sso/saml2/sp/acs/${samlProviderId}`;
-  const samlEmailDomain = process.env["SAML_EMAIL_DOMAIN"] ?? "ghanem.sa";
   const samlGroupsAttribute =
     process.env["SAML_GROUPS_ATTRIBUTE"] ?? "http://schemas.xmlsoap.org/claims/Group";
   const samlAdminGroup = process.env["SAML_ADMIN_GROUP"] ?? "platform-admins";
@@ -115,10 +115,10 @@ function build() {
                 samlConfig: {
                   issuer: samlIssuer,
                   entryPoint: samlEntryPoint,
-                  cert: samlCertificate ?? "",
+                  cert: samlCertificate,
                   idpMetadata: {
                     entityID: samlIdpEntityId,
-                    cert: samlCertificate ?? "",
+                    cert: samlCertificate,
                   },
                   callbackUrl: samlCallbackUrl,
                   idpInitiatedCallbackUrl: `${baseURL}/dashboard`,
@@ -157,6 +157,16 @@ function build() {
               if (existing?.disabledAt) {
                 throw new APIError("FORBIDDEN", { message: "This account is disabled" });
               }
+              // A pending password change belongs to the local credential, and
+              // signing in through the IdP does not satisfy it. Only clear the
+              // gate for users who have no password to change.
+              const credential = await db().query.account.findFirst({
+                where: and(
+                  eq(schema.account.userId, user.id),
+                  eq(schema.account.providerId, "credential"),
+                ),
+                columns: { id: true },
+              });
               const role = samlRoleFromGroups(userInfo["groups"], samlAdminGroup);
               if (role === undefined) {
                 log.warn(
@@ -168,7 +178,7 @@ function build() {
                 .update(schema.user)
                 .set({
                   ...(role === undefined ? {} : { role }),
-                  mustChangePassword: false,
+                  ...(credential ? {} : { mustChangePassword: false }),
                   updatedAt: new Date(),
                 })
                 .where(eq(schema.user.id, user.id));

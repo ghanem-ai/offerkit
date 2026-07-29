@@ -124,7 +124,7 @@ Use the README's **Launch with Diploi** button if you want to start from Diploi'
 
 Public sign-up is disabled: accounts are seeded from `ADMIN_EMAIL` / `ADMIN_PASSWORD`, created by an admin under **Settings → Users**, or provisioned on first SSO login. Disabled accounts (`disabledAt` set) cannot start a session by any path.
 
-Set `SAML_ENABLED=true` on `web` to make `/sign-in` lead with a **Continue with Ghanem SSO** button, with the email/password form kept as **Emergency access**. `SAML_IDP_CERTIFICATE` is required when SSO is enabled — the auth layer throws on first use without it.
+Set `SAML_ENABLED=true` on `web` to make `/sign-in` lead with a **Continue with single sign-on** button, with the email/password form kept as **Emergency access**. `SAML_IDP_SSO_URL`, `SAML_IDP_ENTITY_ID`, `SAML_IDP_CERTIFICATE` and `SAML_EMAIL_DOMAIN` have no defaults — the auth layer throws on first use if any of them is missing. `SAML_ENABLED` is read per request, so it can be flipped on an already-built image.
 
 ```
 SAML_ENABLED=true
@@ -133,7 +133,8 @@ SAML_IDP_SSO_URL=https://your-idp/application/saml/offerkit/sso/binding/redirect
 SAML_IDP_ENTITY_ID=https://your-idp/application/saml/offerkit/metadata/
 SAML_IDP_CERTIFICATE=…                     # IdP signing certificate (PEM body)
 SAML_SP_ENTITY_ID=…                        # defaults to OFFERKIT_PUBLIC_URL
-SAML_EMAIL_DOMAIN=ghanem.sa
+SAML_EMAIL_DOMAIN=example.com
+SAML_BUTTON_LABEL=Continue with Acme SSO   # optional sign-in button label
 SAML_GROUPS_ATTRIBUTE=http://schemas.xmlsoap.org/claims/Group
 SAML_ADMIN_GROUP=platform-admins
 SAML_ALLOW_IDP_INITIATED=false

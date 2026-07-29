@@ -6,6 +6,20 @@ import { db } from "@/lib/db";
 
 const log = logger.child({ component: "rate-limit" });
 
+/** Rows removed per opportunistic sweep, so one sweep can never lock the table. */
+const CLEANUP_BATCH_SIZE = 1_000;
+
+async function sweepExpiredWindows(): Promise<void> {
+  await db().execute(sql`
+    DELETE FROM ${schema.apiRateLimit}
+    WHERE ctid IN (
+      SELECT ctid FROM ${schema.apiRateLimit}
+      WHERE window_start < now() - interval '5 minutes'
+      LIMIT ${CLEANUP_BATCH_SIZE}
+    )
+  `);
+}
+
 export async function takeToken(keyId: string, rps: number): Promise<void> {
   const limit = Math.max(rps, 1);
   const accepted = await db().transaction(async (tx) => {
@@ -59,6 +73,11 @@ export async function takeToken(keyId: string, rps: number): Promise<void> {
     LEFT JOIN bumped ON true
   `);
     return result.rows[0]?.accepted === true;
+  }).catch((error: unknown) => {
+    // The limiter is a guard, not the request itself: a database blip must not
+    // turn every API call into a 500.
+    log.warn({ err: error, keyId }, "api rate limit check failed, allowing request");
+    return true;
   });
   if (!accepted) {
     throw new ORPCError("TOO_MANY_REQUESTS", {
@@ -69,11 +88,8 @@ export async function takeToken(keyId: string, rps: number): Promise<void> {
   // Opportunistic cleanup keeps the fixed-window table bounded without
   // introducing a separate maintenance job.
   if (Math.random() < 0.01) {
-    void db()
-      .delete(schema.apiRateLimit)
-      .where(sql`${schema.apiRateLimit.windowStart} < now() - interval '5 minutes'`)
-      .catch((error: unknown) => {
-        log.warn({ err: error }, "api rate limit cleanup failed");
-      });
+    void sweepExpiredWindows().catch((error: unknown) => {
+      log.warn({ err: error }, "api rate limit cleanup failed");
+    });
   }
 }

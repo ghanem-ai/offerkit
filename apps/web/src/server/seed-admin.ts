@@ -23,19 +23,22 @@ export async function seedAdmin(): Promise<void> {
   // Public sign-up is disabled, so create the credential account directly
   // instead of going through auth().api.signUpEmail.
   const userId = crypto.randomUUID();
-  await db().insert(schema.user).values({
-    id: userId,
-    email,
-    name: "Admin",
-    role: "admin",
-    mustChangePassword: true,
-  });
-  await db().insert(schema.account).values({
-    id: crypto.randomUUID(),
-    userId,
-    accountId: userId,
-    providerId: "credential",
-    password: await hashPassword(password),
+  const passwordHash = await hashPassword(password);
+  await db().transaction(async (tx) => {
+    await tx.insert(schema.user).values({
+      id: userId,
+      email,
+      name: "Admin",
+      role: "admin",
+      mustChangePassword: true,
+    });
+    await tx.insert(schema.account).values({
+      id: crypto.randomUUID(),
+      userId,
+      accountId: userId,
+      providerId: "credential",
+      password: passwordHash,
+    });
   });
 
   log.info(
