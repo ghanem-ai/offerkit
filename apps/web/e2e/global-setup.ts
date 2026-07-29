@@ -1,4 +1,4 @@
-import { chromium, type FullConfig } from "@playwright/test";
+import { chromium, type FullConfig, type Page } from "@playwright/test";
 import path from "node:path";
 import fs from "node:fs/promises";
 
@@ -6,6 +6,26 @@ const ADMIN_EMAIL = process.env["E2E_ADMIN_EMAIL"] ?? "admin@example.com";
 const ADMIN_PASSWORD = process.env["E2E_ADMIN_PASSWORD"] ?? "changeme123";
 const ROTATED_PASSWORD =
   process.env["E2E_ADMIN_PASSWORD_ROTATED"] ?? `${ADMIN_PASSWORD}-rotated`;
+
+async function signInWithPassword(
+  page: Page,
+  password: string,
+): Promise<boolean> {
+  await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
+  await page.getByLabel(/password/i).fill(password);
+  const response = await Promise.all([
+    page.waitForResponse(
+      (candidate) => candidate.url().includes("/api/auth/sign-in/email"),
+      { timeout: 15_000 },
+    ),
+    page.getByRole("button", { name: /sign in/i }).click(),
+  ]).then(([candidate]) => candidate);
+  if (!response.ok()) return false;
+  await page.waitForURL((url) => !url.pathname.endsWith("/sign-in"), {
+    timeout: 15_000,
+  });
+  return true;
+}
 
 /**
  * Sign in once and persist the storage state. Specs reference the file
@@ -23,39 +43,23 @@ async function globalSetup(config: FullConfig): Promise<void> {
   const page = await ctx.newPage();
   await page.goto("/sign-in");
 
-  await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-  await page.getByLabel(/password/i).fill(ADMIN_PASSWORD);
-  await Promise.all([
-    page.waitForResponse(
-      (r) => r.url().includes("/api/auth/sign-in/email"),
-      { timeout: 15_000 },
-    ),
-    page.getByRole("button", { name: /sign in/i }).click(),
-  ]);
-  // Give the client router a beat to push to the next route.
-  await page.waitForLoadState("networkidle", { timeout: 15_000 });
-
-  // If the seeded password was rejected (e.g. a previous run already
-  // rotated it), fall back to the rotated password.
-  if (page.url().includes("/sign-in")) {
-    await page.getByLabel(/password/i).fill(ROTATED_PASSWORD);
-    await Promise.all([
-      page.waitForResponse(
-        (r) => r.url().includes("/api/auth/sign-in/email"),
-        { timeout: 15_000 },
-      ),
-      page.getByRole("button", { name: /sign in/i }).click(),
-    ]);
-    await page.waitForLoadState("networkidle", { timeout: 15_000 });
+  let signedIn = await signInWithPassword(page, ADMIN_PASSWORD);
+  if (!signedIn) {
+    signedIn = await signInWithPassword(page, ROTATED_PASSWORD);
   }
+  if (!signedIn) throw new Error("Could not sign in with the seeded or rotated admin password");
 
   if (page.url().includes("/change-password")) {
     await page.getByLabel(/current password/i).fill(ADMIN_PASSWORD);
     await page.getByLabel("New password", { exact: true }).fill(ROTATED_PASSWORD);
     await page.getByLabel(/confirm new password/i).fill(ROTATED_PASSWORD);
-    await Promise.all([
+    const [changeResponse, clearResponse] = await Promise.all([
       page.waitForResponse(
         (r) => r.url().includes("/api/auth/change-password"),
+        { timeout: 15_000 },
+      ),
+      page.waitForResponse(
+        (r) => r.url().includes("/api/v1/me/clear-must-change-password"),
         { timeout: 15_000 },
       ),
       page
@@ -64,23 +68,21 @@ async function globalSetup(config: FullConfig): Promise<void> {
         })
         .click(),
     ]);
-    await page.waitForLoadState("networkidle", { timeout: 15_000 });
+    if (!changeResponse.ok()) throw new Error("Admin password rotation failed");
 
-    // revokeOtherSessions:true on the change-password call can invalidate
-    // the current session. If we're bounced to /sign-in, sign back in
-    // with the new password before persisting state.
-    if (page.url().includes("/sign-in")) {
-      await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-      await page.getByLabel(/password/i).fill(ROTATED_PASSWORD);
-      await Promise.all([
-        page.waitForResponse(
-          (r) => r.url().includes("/api/auth/sign-in/email"),
-          { timeout: 15_000 },
-        ),
-        page.getByRole("button", { name: /sign in/i }).click(),
-      ]);
-      await page.waitForLoadState("networkidle", { timeout: 15_000 });
+    if (!clearResponse.ok()) {
+      await page.goto("/sign-in");
+      if (!(await signInWithPassword(page, ROTATED_PASSWORD))) {
+        throw new Error("Could not sign in after rotating the admin password");
+      }
+      const clearAfterSignIn = await ctx.request.post(
+        "/api/v1/me/clear-must-change-password",
+      );
+      if (!clearAfterSignIn.ok()) {
+        throw new Error("Could not clear the admin password-change requirement");
+      }
     }
+    await page.goto("/dashboard");
   }
 
   // eslint-disable-next-line no-console
