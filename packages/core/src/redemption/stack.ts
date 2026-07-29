@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { schema, type Db } from "@offerkit/db";
 import { calculateDiscount, type DiscountResult } from "../discount/index.ts";
 import { emitEvent } from "../events/index.ts";
@@ -25,6 +25,21 @@ import type {
 } from "./types.ts";
 
 const log = logger.child({ component: "redemption" });
+
+function stackRequestHash(input: StackRedeemInput): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        voucherCodes: [...new Set(input.voucherCodes)].sort(),
+        customerId: input.customerId ?? null,
+        customerExternalId: input.customerExternalId ?? null,
+        orderId: input.orderId ?? null,
+        externalOrderId: input.externalOrderId ?? null,
+        order: input.order,
+      }),
+    )
+    .digest("hex");
+}
 
 /**
  * Redeem multiple voucher codes against one order in a single
@@ -69,6 +84,7 @@ async function stackRedeemImpl(
   }
   // Dedupe + sort to make the lock acquisition order deterministic.
   const codes = [...new Set(input.voucherCodes)].sort();
+  const requestHash = stackRequestHash(input);
 
   return db.transaction(async (tx) => {
     const resolvedCustomer = await resolveCustomerRef(
@@ -238,6 +254,7 @@ async function stackRedeemImpl(
                 amount: discount.amount,
                 percent: discount.percent,
                 maxDiscountAmount: discount.maxDiscountAmount,
+                appliesTo: discount.appliesTo,
                 priority: v.priority,
                 exclusive: v.exclusive,
                 createdAt: v.createdAt.toISOString(),
@@ -306,6 +323,7 @@ async function stackRedeemImpl(
           breakdown: { breakdown: result.breakdown, finalOrder: result.finalOrder },
           idempotencyKey: input.idempotencyKey ?? null,
           batchId,
+          metadata: { stackRequestHash: requestHash },
         })
         .returning({ id: schema.redemption.id });
       if (!row) throw new Error("stack redemption insert failed");
@@ -468,6 +486,32 @@ async function replayBatch(tx: Tx, input: StackRedeemInput): Promise<StackRedeem
   if (!priorBatch?.batchId) return null;
 
   const batch = prior.filter((r) => r.batchId === priorBatch.batchId);
+  const storedHash = (priorBatch.metadata as { stackRequestHash?: string }).stackRequestHash;
+  if (storedHash && storedHash !== stackRequestHash(input)) {
+    throw new Error("Idempotency key reused with a different stack redemption request");
+  }
+  if (!storedHash) {
+    const vouchers = await tx
+      .select({ code: schema.voucher.code })
+      .from(schema.voucher)
+      .where(inArray(schema.voucher.id, batch.map((row) => row.voucherId)));
+    const priorCodes = vouchers.map((voucher) => voucher.code).sort();
+    const requestedCodes = [...new Set(input.voucherCodes)].sort();
+    const priorAmount = batch.reduce((sum, row) => sum + (row.amount ?? 0), 0);
+    const storedFinalOrder = (
+      priorBatch.breakdown as { finalOrder?: DiscountResult["finalOrder"] }
+    )?.finalOrder;
+    const sameLegacyRequest =
+      JSON.stringify(priorCodes) === JSON.stringify(requestedCodes) &&
+      storedFinalOrder?.currency === input.order.currency &&
+      (storedFinalOrder?.amount ?? 0) + priorAmount === input.order.amount &&
+      (priorBatch.customerId ?? null) === (input.customerId ?? null) &&
+      (priorBatch.orderId ?? null) === (input.orderId ?? null) &&
+      (priorBatch.externalOrderId ?? null) === (input.externalOrderId ?? null);
+    if (!sameLegacyRequest) {
+      throw new Error("Idempotency key reused with a different stack redemption request");
+    }
+  }
   const breakdown =
     (priorBatch.breakdown as { breakdown?: DiscountResult["breakdown"] })?.breakdown ?? [];
   const finalOrder =

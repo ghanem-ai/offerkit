@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { TEST_DB_URL, rawRequest } from "./_helpers";
 
 describe("health and readiness probes", () => {
-  it("returns liveness and database readiness through the public routes", async () => {
+  it("returns liveness plus database and worker readiness through the public routes", async () => {
     if (TEST_DB_URL) process.env["DATABASE_URL"] = TEST_DB_URL;
     const health = await rawRequest(new Request("http://test.local/api/v1/health"));
     expect(health.ok).toBe(true);
@@ -12,8 +12,8 @@ describe("health and readiness probes", () => {
     expect(ready.ok).toBe(true);
     const dbExpected = Boolean(TEST_DB_URL);
     await expect(ready.json()).resolves.toMatchObject({
-      status: dbExpected ? "ok" : "degraded",
-      checks: { db: dbExpected, worker: true },
+      status: "degraded",
+      checks: { db: dbExpected, worker: false },
     });
   });
 });

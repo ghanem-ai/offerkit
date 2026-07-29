@@ -5,7 +5,6 @@ import { schema } from "@offerkit/db";
 import { contract } from "@offerkit/contract/router";
 import { sendEmail } from "@offerkit/core/email";
 import type { RequestContext } from "@/server/context";
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requireSession } from "@/server/middleware/auth";
 
@@ -102,14 +101,16 @@ const list = os.users.list.use(requireSession).handler(async ({ context }) => {
 const create = os.users.create.use(requireSession).handler(async ({ context, input }) => {
   requireAdmin(context.user.role);
   const password = generatePassword();
-  const result = await auth().api.signUpEmail({
-    body: { email: input.email, password, name: input.name ?? input.email },
+  const userId = crypto.randomUUID();
+  await db().insert(schema.user).values({
+    id: userId,
+    email: input.email,
+    name: input.name ?? input.email,
+    role: input.role,
+    mustChangePassword: true,
   });
-  await db()
-    .update(schema.user)
-    .set({ role: input.role, mustChangePassword: true })
-    .where(eq(schema.user.id, result.user.id));
-  const row = await findUserOrThrow(result.user.id);
+  await setUserPassword(userId, password);
+  const row = await findUserOrThrow(userId);
   await sendEmail({
     to: input.email,
     subject: "Your Offerkit account",

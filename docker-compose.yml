@@ -41,6 +41,7 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-please-change-this-32-chars-min-secret}
       WEBHOOK_SECRET_ENCRYPTION_KEY: ${WEBHOOK_SECRET_ENCRYPTION_KEY:-please-change-this-webhook-encryption-key}
       OFFERKIT_PUBLIC_URL: http://localhost:3000
+      WORKER_READINESS_URL: http://worker:9091/ready
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme123}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
@@ -51,7 +52,7 @@ services:
 
   worker:
     image: ${OFFERKIT_IMAGE:-ghcr.io/offerkit/offerkit}:${OFFERKIT_IMAGE_TAG:-latest}
-    command: ["node", "apps/worker/dist/index.js"]
+    command: ["apps/worker/dist/index.js"]
     restart: unless-stopped
     depends_on:
       postgres:

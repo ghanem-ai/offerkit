@@ -332,6 +332,7 @@ export function previewDiscount(
             amount: v.discount.amount,
             percent: v.discount.percent,
             maxDiscountAmount: v.discount.maxDiscountAmount,
+            appliesTo: v.discount.appliesTo,
             priority: v.priority,
             exclusive: v.exclusive,
             createdAt: v.createdAt.toISOString(),

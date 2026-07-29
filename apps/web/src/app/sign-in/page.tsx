@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
 import { T, useGT } from "gt-next/client";
+import { KeyRound } from "lucide-react";
 import { signIn } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,18 @@ export default function SignInPage() {
   const params = useSearchParams();
   const gt = useGT();
   const [error, setError] = useState<string | null>(null);
+  const next = params.get("next") ?? "/dashboard";
+
+  const signInWithSso = async () => {
+    setError(null);
+    const result = await signIn.sso({
+      providerId: "authentik",
+      callbackURL: next,
+    });
+    if (result?.error) {
+      setError(result.error.message ?? gt("Single sign-on failed"));
+    }
+  };
 
   const form = useForm({
     defaultValues: { email: "", password: "" },
@@ -25,7 +38,7 @@ export default function SignInPage() {
         setError(result.error.message ?? gt("Sign in failed"));
         return;
       }
-      router.push(params.get("next") ?? "/dashboard");
+      router.push(next);
       router.refresh();
     },
   });
@@ -42,6 +55,15 @@ export default function SignInPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <Button type="button" className="w-full" onClick={() => void signInWithSso()}>
+            <KeyRound />
+            <T>Continue with Ghanem SSO</T>
+          </Button>
+          <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            <T>Emergency access</T>
+            <span className="h-px flex-1 bg-border" />
+          </div>
           <form
             onSubmit={(e) => {
               e.preventDefault();

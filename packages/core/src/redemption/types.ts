@@ -140,7 +140,13 @@ export interface VoucherRow extends Record<string, unknown> {
   code: string;
   campaignId: string | null;
   type: string;
-  discount: { type: "AMOUNT" | "PERCENTAGE"; amount?: number; percent?: number; maxDiscountAmount?: number } | null;
+  discount: {
+    type: "AMOUNT" | "PERCENTAGE";
+    amount?: number;
+    percent?: number;
+    maxDiscountAmount?: number;
+    appliesTo?: { productIds?: string[]; collectionIds?: string[] };
+  } | null;
   customRewards: unknown[];
   giftBalance: number | null;
   redemptionLimit: number | null;

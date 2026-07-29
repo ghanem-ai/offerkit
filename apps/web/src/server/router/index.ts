@@ -29,15 +29,27 @@ const health = os.health.handler(() => ({
 
 const ready = os.ready.handler(async () => {
   let dbOk = false;
+  let workerOk = false;
   try {
     await db().execute(sql`select 1`);
     dbOk = true;
   } catch {
     dbOk = false;
   }
+  try {
+    const workerHealthUrl =
+      process.env["WORKER_READINESS_URL"] ?? "http://offerkit-worker:9091/ready";
+    const response = await fetch(workerHealthUrl, {
+      signal: AbortSignal.timeout(2_000),
+      cache: "no-store",
+    });
+    workerOk = response.ok;
+  } catch {
+    workerOk = false;
+  }
   return {
-    status: dbOk ? ("ok" as const) : ("degraded" as const),
-    checks: { db: dbOk, worker: true },
+    status: dbOk && workerOk ? ("ok" as const) : ("degraded" as const),
+    checks: { db: dbOk, worker: workerOk },
   };
 });
 

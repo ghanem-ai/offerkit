@@ -505,15 +505,26 @@ const transactions = os.vouchers.transactions
 const stackRedeemProc = os.vouchers.stackRedeem
   .use(requireSession)
   .handler(async ({ input }) => {
-    const result = await stackRedeem(db(), {
-      voucherCodes: input.codes,
-      customerId: input.customerId,
-      customerExternalId: input.customerExternalId,
-      orderId: input.orderId,
-      externalOrderId: input.externalOrderId,
-      order: input.order,
-      idempotencyKey: input.idempotencyKey,
-    });
+    let result: Awaited<ReturnType<typeof stackRedeem>>;
+    try {
+      result = await stackRedeem(db(), {
+        voucherCodes: input.codes,
+        customerId: input.customerId,
+        customerExternalId: input.customerExternalId,
+        orderId: input.orderId,
+        externalOrderId: input.externalOrderId,
+        order: input.order,
+        idempotencyKey: input.idempotencyKey,
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === "Idempotency key reused with a different stack redemption request"
+      ) {
+        throw new ORPCError("CONFLICT", { message: error.message });
+      }
+      throw error;
+    }
     if (result.ok) {
       return {
         ok: true,
