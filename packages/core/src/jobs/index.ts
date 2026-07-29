@@ -105,7 +105,8 @@ export function createRedisJobQueue(options: RedisJobQueueOptions): JobQueueAdap
     },
 
     async ensureScheduled(type, runAt, payload = {}) {
-      const jobId = `scheduled:${type}`;
+      // BullMQ rejects custom job ids containing ":".
+      const jobId = `scheduled-${type}`;
       const existing = await queue.getJob(jobId);
       if (existing) return;
       await queue.add(type, payload, {

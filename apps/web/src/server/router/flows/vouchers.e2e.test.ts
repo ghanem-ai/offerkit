@@ -65,7 +65,9 @@ describe.skipIf(!E2E_ENABLED)("vouchers bulk + CRUD + transactions", () => {
       discount: { type: "AMOUNT", amount: 500 },
     });
     expect(result.generated).toBe(0);
-    expect(result.jobId).toMatch(/^[0-9a-f-]{36}$/);
+    // Opaque queue-assigned id: a uuid on Postgres, a numeric string on Redis.
+    expect(result.jobId).toBeTypeOf("string");
+    expect(result.jobId).not.toBe("");
   });
 
   it("rejects discount bulk mint without a positive discount", async () => {

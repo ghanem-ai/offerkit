@@ -73,7 +73,8 @@ export const vouchers = {
         // Number generated synchronously; 0 when the work was queued.
         generated: z.number().int(),
         // Set when count exceeds the inline threshold and the job is queued.
-        jobId: z.string().uuid().optional(),
+        // Opaque queue-assigned id: a uuid on Postgres, a numeric string on Redis.
+        jobId: z.string().optional(),
       }),
     ),
 
