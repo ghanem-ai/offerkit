@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { schema, type Db } from "@offerkit/db";
 import { calculateDiscount, type DiscountResult } from "../discount/index.ts";
 import { emitEvent } from "../events/index.ts";
@@ -25,6 +25,55 @@ import type {
 } from "./types.ts";
 
 const log = logger.child({ component: "redemption" });
+
+/**
+ * Thrown when an idempotency key is replayed with a payload that differs from
+ * the one it originally committed. Callers map this to a 409.
+ */
+export class IdempotencyKeyConflictError extends Error {
+  readonly code = "idempotency_key_conflict";
+
+  constructor() {
+    super("Idempotency key reused with a different stack redemption request");
+    this.name = "IdempotencyKeyConflictError";
+  }
+}
+
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, canonicalize(entry)]),
+  );
+}
+
+export function stackRequestHash(input: StackRedeemInput): string {
+  const orderItems = input.order.items
+    ?.map((item) => canonicalize(item))
+    .sort((left, right) =>
+      JSON.stringify(left).localeCompare(JSON.stringify(right)),
+    );
+  return createHash("sha256")
+    .update(
+      JSON.stringify(
+        canonicalize({
+          voucherCodes: [...new Set(input.voucherCodes)].sort(),
+          customerId: input.customerId ?? null,
+          customerExternalId: input.customerExternalId ?? null,
+          orderId: input.orderId ?? null,
+          externalOrderId: input.externalOrderId ?? null,
+          order: {
+            ...input.order,
+            ...(orderItems ? { items: orderItems } : {}),
+          },
+        }),
+      ),
+    )
+    .digest("hex");
+}
 
 /**
  * Redeem multiple voucher codes against one order in a single
@@ -69,6 +118,7 @@ async function stackRedeemImpl(
   }
   // Dedupe + sort to make the lock acquisition order deterministic.
   const codes = [...new Set(input.voucherCodes)].sort();
+  const requestHash = stackRequestHash(input);
 
   return db.transaction(async (tx) => {
     const resolvedCustomer = await resolveCustomerRef(
@@ -238,6 +288,7 @@ async function stackRedeemImpl(
                 amount: discount.amount,
                 percent: discount.percent,
                 maxDiscountAmount: discount.maxDiscountAmount,
+                appliesTo: discount.appliesTo,
                 priority: v.priority,
                 exclusive: v.exclusive,
                 createdAt: v.createdAt.toISOString(),
@@ -306,6 +357,7 @@ async function stackRedeemImpl(
           breakdown: { breakdown: result.breakdown, finalOrder: result.finalOrder },
           idempotencyKey: input.idempotencyKey ?? null,
           batchId,
+          metadata: { stackRequestHash: requestHash },
         })
         .returning({ id: schema.redemption.id });
       if (!row) throw new Error("stack redemption insert failed");
@@ -468,6 +520,19 @@ async function replayBatch(tx: Tx, input: StackRedeemInput): Promise<StackRedeem
   if (!priorBatch?.batchId) return null;
 
   const batch = prior.filter((r) => r.batchId === priorBatch.batchId);
+  const storedHash = (priorBatch.metadata as { stackRequestHash?: string }).stackRequestHash;
+  if (storedHash && storedHash !== stackRequestHash(input)) {
+    throw new IdempotencyKeyConflictError();
+  }
+  if (!storedHash) {
+    // Batches recorded before stackRequestHash existed carry nothing that can
+    // reconstruct the original request, so migrated production data always
+    // replays rather than risking a false conflict.
+    log.warn(
+      { batchId: priorBatch.batchId, idempotencyKey: input.idempotencyKey },
+      "replaying stack redemption recorded without a request hash",
+    );
+  }
   const breakdown =
     (priorBatch.breakdown as { breakdown?: DiscountResult["breakdown"] })?.breakdown ?? [];
   const finalOrder =

@@ -51,4 +51,16 @@ describe.skipIf(!E2E_ENABLED)("staff users admin", () => {
     const reEnabled = await client.users.enable({ params: { id: created.id } });
     expect(reEnabled.disabledAt).toBeNull();
   });
+
+  it("rejects a duplicate email with a conflict instead of a database error", async () => {
+    if (!token) throw new Error("setup failed");
+    const client = makeClient(token);
+
+    const email = `${randomId("staff-dup")}@example.com`;
+    await client.users.create({ email, role: "member" });
+
+    await expect(client.users.create({ email, role: "member" })).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+  });
 });

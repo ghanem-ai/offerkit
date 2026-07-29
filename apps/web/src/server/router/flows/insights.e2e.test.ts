@@ -79,4 +79,23 @@ describe.skipIf(!E2E_ENABLED)("insights summary", () => {
     expect(summary.topCampaigns.length).toBeGreaterThanOrEqual(1);
     void campaigns;
   });
+
+  it("includes failed validation attempts in the failure breakdown", async () => {
+    if (!token) throw new Error("setup failed");
+    const client = makeClient(token);
+
+    const validation = await client.vouchers.validate({
+      params: { code: randomId("MISSING").toUpperCase() },
+      body: { order: { amount: 1_000, currency: "USD" } },
+    });
+    expect(validation.valid).toBe(false);
+    expect(validation.code).toBe("voucher_not_found");
+
+    const summary = await client.insights.summary({});
+    expect(summary.failures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ reason: "voucher_not_found" }),
+      ]),
+    );
+  });
 });

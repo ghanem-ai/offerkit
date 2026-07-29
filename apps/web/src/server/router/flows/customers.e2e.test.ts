@@ -99,9 +99,61 @@ describe.skipIf(!E2E_ENABLED)("customers CRUD", () => {
     });
     expect(patched.email).toBe(`${externalId}.updated@example.com`);
 
+    const campaign = await client.campaigns.create({
+      name: randomId("customer-history"),
+      type: "DISCOUNT",
+      currency: "USD",
+    });
+    await client.campaigns.update({
+      params: { id: campaign.id },
+      body: { patch: { status: "active" } },
+    });
+    const code = randomId("CUSTHISTORY").toUpperCase();
+    await client.vouchers.create({
+      code,
+      campaignId: campaign.id,
+      type: "DISCOUNT",
+      discount: { type: "AMOUNT", amount: 1_000 },
+      customerId: fetched.id,
+    });
+    const redeemed = await client.vouchers.redeem({
+      params: { code },
+      body: {
+        customerExternalId: externalId,
+        externalOrderId: randomId("customer-history-order"),
+        order: { amount: 1_000, currency: "USD" },
+      },
+    });
+    expect(redeemed.ok).toBe(true);
+
+    const history = await client.customers.redemptions({
+      params: { id: fetched.id },
+      query: { limit: 20 },
+    });
+    expect(history.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          voucherCode: code,
+          result: "SUCCESS",
+          amount: 1_000,
+          currency: "USD",
+        }),
+      ]),
+    );
+
     await client.customers.delete({ params: { id: fetched.id } });
     await expect(
       client.customers.getByExternalId({ params: { externalId } }),
+    ).rejects.toThrow(/not found/i);
+
+    await expect(
+      client.customers.redemptions({ params: { id: fetched.id }, query: { limit: 20 } }),
+    ).rejects.toThrow(/not found/i);
+    await expect(
+      client.customers.redemptions({
+        params: { id: "11111111-1111-4111-8111-111111111111" },
+        query: { limit: 20 },
+      }),
     ).rejects.toThrow(/not found/i);
   });
 });

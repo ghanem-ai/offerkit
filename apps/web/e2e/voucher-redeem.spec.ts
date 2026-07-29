@@ -23,6 +23,20 @@ test.describe("voucher redeem from dashboard", () => {
     ]);
     await page.waitForURL(/\/campaigns\/[0-9a-f-]{36}/, { timeout: 15_000 });
 
+    // New campaigns intentionally start as drafts. Activate this one through
+    // the same dashboard flow an operator uses before testing redemption.
+    await page.getByLabel("Status", { exact: true }).click();
+    await page.getByRole("option", { name: "active", exact: true }).click();
+    await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          /\/api\/v1\/campaigns\/[0-9a-f-]{36}$/.test(r.url()) &&
+          r.request().method() === "PATCH",
+        { timeout: 15_000 },
+      ),
+      page.getByRole("button", { name: /save changes/i }).click(),
+    ]);
+
     // Bulk-mint 1 voucher from the campaign detail page; click into the
     // voucher's detail row to land on /vouchers/[code].
     await page.getByLabel(/bulk generate/i).fill("1");

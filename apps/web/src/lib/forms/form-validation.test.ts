@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { campaignCreateInput } from "@offerkit/contract";
 import {
   campaignFormSchema,
   campaignFormToCreateInput,
@@ -8,10 +9,12 @@ import {
 import {
   voucherCreateFormSchema,
   voucherEditFormSchema,
+  voucherFormSchema,
   voucherFormToCreateInput,
   voucherFormToUpdateInput,
   type VoucherFormState,
 } from "./voucher";
+import { fromIsoToLocalDateTime, toIsoOrUndefined } from "./shared";
 
 const campaign: CampaignFormState = {
   name: "Summer sale",
@@ -39,6 +42,7 @@ const voucher: VoucherFormState = {
   redemptionLimit: 100,
   perUserRedemptionLimit: 1,
   customerId: "22222222-2222-4222-8222-222222222222",
+  customerExternalId: "",
   priority: 3,
   exclusive: true,
   active: true,
@@ -93,8 +97,8 @@ describe("campaign form validation", () => {
       perUserRedemptionLimit: 2,
       codeConfig: { length: 8, prefix: "SUMMER-" },
     });
-    expect(create.startDate).toBe(new Date(campaign.startDate).toISOString());
-    expect(create.endDate).toBe(new Date(campaign.endDate).toISOString());
+    expect(create.startDate).toBe("2026-07-10T10:00:00.000Z");
+    expect(create.endDate).toBe("2026-07-11T10:00:00.000Z");
 
     const update = campaignFormToUpdateInput({
       ...campaign,
@@ -144,6 +148,15 @@ describe("voucher form validation", () => {
     );
   });
 
+  it("rejects simultaneous internal and external customer identifiers", () => {
+    const result = voucherCreateFormSchema.safeParse({
+      ...voucher,
+      customerExternalId: "ghanem-user-123",
+    });
+
+    expect(issuePaths(result)).toContain("customerExternalId");
+  });
+
   it("requires a positive balance only when creating a gift card", () => {
     const giftCard = {
       ...voucher,
@@ -181,7 +194,7 @@ describe("voucher form validation", () => {
       customerId: voucher.customerId,
     });
     expect(input.discount).not.toHaveProperty("amount");
-    expect(input.startDate).toBe(new Date(voucher.startDate).toISOString());
+    expect(input.startDate).toBe("2026-07-10T10:00:00.000Z");
   });
 
   it("preserves gift-card edit behavior while omitting discount fields", () => {
@@ -199,5 +212,73 @@ describe("voucher form validation", () => {
     expect(input).not.toHaveProperty("code");
     expect(input).not.toHaveProperty("campaignId");
     expect(input).not.toHaveProperty("type");
+  });
+});
+
+describe("timezone-aware date conversion", () => {
+  it("uses UTC instead of the browser timezone when no timezone is supplied", () => {
+    expect(toIsoOrUndefined("2026-07-29T10:30")).toBe(
+      "2026-07-29T10:30:00.000Z",
+    );
+    expect(fromIsoToLocalDateTime("2026-07-29T10:30:00.000Z")).toBe(
+      "2026-07-29T10:30",
+    );
+  });
+
+  it("falls back to UTC instead of throwing on a stored timezone the engine rejects", () => {
+    expect(fromIsoToLocalDateTime("2026-07-29T10:30:00.000Z", "Bogus/Zone")).toBe(
+      "2026-07-29T10:30",
+    );
+    expect(toIsoOrUndefined("2026-07-29T10:30", "Bogus/Zone")).toBe(
+      "2026-07-29T10:30:00.000Z",
+    );
+  });
+
+  it("rejects an invalid campaign timezone at the contract boundary", () => {
+    const base = { name: "Summer sale", type: "DISCOUNT" as const, currency: "USD" };
+    expect(campaignCreateInput.safeParse({ ...base, timezone: "Bogus/Zone" }).success).toBe(false);
+    expect(campaignCreateInput.safeParse({ ...base, timezone: "Asia/Riyadh" }).success).toBe(true);
+  });
+
+  it("flags a local time that does not exist in the campaign timezone", () => {
+    const result = campaignFormSchema.safeParse({
+      ...campaign,
+      timezone: "America/New_York",
+      startDate: "2026-03-08T02:30",
+      endDate: "2026-03-08T04:30",
+    });
+
+    expect(result.success).toBe(false);
+    expect(issuePaths(result)).toContain("startDate");
+  });
+
+  it("flags a DST gap on the voucher form using the campaign timezone", () => {
+    const result = voucherFormSchema("create", "America/New_York").safeParse({
+      ...voucher,
+      startDate: "2026-03-08T02:30",
+      endDate: "2026-03-08T04:30",
+    });
+
+    expect(result.success).toBe(false);
+    expect(issuePaths(result)).toContain("startDate");
+  });
+
+  it("converts Riyadh local time to UTC and back without shifting the form value", () => {
+    const iso = toIsoOrUndefined("2026-07-29T10:30", "Asia/Riyadh");
+
+    expect(iso).toBe("2026-07-29T07:30:00.000Z");
+    expect(fromIsoToLocalDateTime(iso, "Asia/Riyadh")).toBe("2026-07-29T10:30");
+  });
+
+  it("uses the campaign timezone in campaign payloads", () => {
+    const input = campaignFormToCreateInput({
+      ...campaign,
+      timezone: "Asia/Riyadh",
+      startDate: "2026-07-29T10:30",
+      endDate: "2026-07-29T11:30",
+    });
+
+    expect(input.startDate).toBe("2026-07-29T07:30:00.000Z");
+    expect(input.endDate).toBe("2026-07-29T08:30:00.000Z");
   });
 });

@@ -1,5 +1,6 @@
 export * from "./auth.ts";
 export * from "./api-key.ts";
+export * from "./api-rate-limit.ts";
 export * from "./audit-log.ts";
 export * from "./campaign.ts";
 export * from "./customer.ts";

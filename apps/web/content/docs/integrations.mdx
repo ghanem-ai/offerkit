@@ -46,7 +46,7 @@ Config is stored in `~/.offerkitrc` (chmod 0600). `OFFERKIT_API_URL` / `OFFERKIT
 
 ## MCP server
 
-`offerkit-mcp` is a stdio MCP server exposing 11 curated tools (the curation is intentional — destructive verbs are explicitly listed so an agent can't accidentally invoke procedures we'd rather it not). Mutating tools (`vouchers_redeem`, `vouchers_stack_redeem`) carry "confirm with the user" guidance in their description.
+`offerkit-mcp` is a stdio MCP server that exposes every procedure in the oRPC contract as a tool. Each tool's description carries its risk level, and mutating and destructive tools carry explicit "confirm with the user before calling" guidance so an agent doesn't invoke a write unprompted.
 
 Add to your MCP host (Claude Desktop, Cursor, …):
 
@@ -65,4 +65,4 @@ Add to your MCP host (Claude Desktop, Cursor, …):
 }
 ```
 
-Available tools: `vouchers_list`, `vouchers_get`, `vouchers_validate`, `vouchers_redeem`, `vouchers_stack_redeem`, `campaigns_list`, `campaigns_get`, `customers_list`, `customers_get`, `loyalty_member_history`, `segments_preview`.
+Every procedure in the oRPC contract is registered as a tool, named after its dotted path with `_` separators — `vouchers_list`, `vouchers_validate`, `vouchers_stackRedeem`, `campaigns_get`, `customers_redemptions`, `loyalty_members_history`, `segments_preview`, and so on. Each tool description ends with its risk level (`safe`, `mutating`, `destructive`) followed by the matching guidance, so the host can prompt for confirmation before writes. Risk comes from the procedure's `.meta()` when declared, otherwise from the HTTP method: `GET` is `safe`, `DELETE` is `destructive`, everything else is `mutating`. The server prints the full tool list to stderr on startup.

@@ -36,6 +36,110 @@ describe("calculateDiscount — golden cases", () => {
     expect(result.finalOrder.amount).toBe(9000);
   });
 
+  it("limits a percentage discount to matching products", () => {
+    const result = calculateDiscount({
+      order: {
+        amount: 10_000,
+        currency: "SAR",
+        items: [
+          { productId: "eligible", quantity: 2, unitPrice: 2_000 },
+          { productId: "other", quantity: 1, unitPrice: 6_000 },
+        ],
+      },
+      vouchers: [
+        {
+          id: "v1",
+          code: "ELIGIBLE50",
+          type: "PERCENTAGE",
+          percent: 5_000,
+          appliesTo: { productIds: ["eligible"] },
+        },
+      ],
+    });
+    expect(result.appliedDiscounts[0]?.amount).toBe(2_000);
+    expect(result.finalOrder.amount).toBe(8_000);
+  });
+
+  it("limits a fixed discount to matching collections", () => {
+    const result = calculateDiscount({
+      order: {
+        amount: 7_000,
+        currency: "SAR",
+        items: [
+          { productId: "a", collectionId: "sale", quantity: 1, unitPrice: 1_500 },
+          { productId: "b", collectionId: "regular", quantity: 1, unitPrice: 5_500 },
+        ],
+      },
+      vouchers: [
+        {
+          id: "v1",
+          code: "SALE",
+          type: "AMOUNT",
+          amount: 4_000,
+          appliesTo: { collectionIds: ["sale"] },
+        },
+      ],
+    });
+    expect(result.appliedDiscounts[0]?.amount).toBe(1_500);
+    expect(result.finalOrder.amount).toBe(5_500);
+  });
+
+  it("discounts the whole order when a restricted voucher gets no line items to scope against", () => {
+    const result = calculateDiscount({
+      order: { amount: 10_000, currency: "SAR" },
+      vouchers: [
+        {
+          id: "v1",
+          code: "ELIGIBLE50",
+          type: "PERCENTAGE",
+          percent: 5_000,
+          appliesTo: { productIds: ["eligible"] },
+        },
+      ],
+    });
+    expect(result.appliedDiscounts[0]?.amount).toBe(5_000);
+    expect(result.finalOrder.amount).toBe(5_000);
+  });
+
+  it("reports no_eligible_items when supplied line items all fall outside the restriction", () => {
+    const result = calculateDiscount({
+      order: {
+        amount: 10_000,
+        currency: "SAR",
+        items: [{ productId: "other", quantity: 1, unitPrice: 10_000 }],
+      },
+      vouchers: [
+        {
+          id: "v1",
+          code: "ELIGIBLE50",
+          type: "PERCENTAGE",
+          percent: 5_000,
+          appliesTo: { productIds: ["eligible"] },
+        },
+      ],
+    });
+    expect(result.appliedDiscounts).toHaveLength(0);
+    expect(result.breakdown[0]).toMatchObject({ amount: 0, reason: "no_eligible_items" });
+    expect(result.finalOrder.amount).toBe(10_000);
+  });
+
+  it("reports no_eligible_items for a restricted voucher on an explicitly empty item list", () => {
+    const result = calculateDiscount({
+      order: { amount: 10_000, currency: "SAR", items: [] },
+      vouchers: [
+        {
+          id: "v1",
+          code: "ELIGIBLE50",
+          type: "PERCENTAGE",
+          percent: 5_000,
+          appliesTo: { productIds: ["eligible"] },
+        },
+      ],
+    });
+    expect(result.appliedDiscounts).toHaveLength(0);
+    expect(result.breakdown[0]).toMatchObject({ amount: 0, reason: "no_eligible_items" });
+  });
+
   it("clamps order at zero — no negative totals", () => {
     const result = calculateDiscount({
       order: order(500),

@@ -1,6 +1,5 @@
 import { schema } from "@offerkit/db";
-import { eq } from "drizzle-orm";
-import { auth } from "@/lib/auth";
+import { hashPassword } from "better-auth/crypto";
 import { db } from "@/lib/db";
 import { logger } from "@offerkit/core/observability";
 
@@ -21,14 +20,26 @@ export async function seedAdmin(): Promise<void> {
 
   log.info({ email }, "creating initial admin user");
 
-  await auth().api.signUpEmail({
-    body: { email, password, name: "Admin" },
+  // Public sign-up is disabled, so create the credential account directly
+  // instead of going through auth().api.signUpEmail.
+  const userId = crypto.randomUUID();
+  const passwordHash = await hashPassword(password);
+  await db().transaction(async (tx) => {
+    await tx.insert(schema.user).values({
+      id: userId,
+      email,
+      name: "Admin",
+      role: "admin",
+      mustChangePassword: true,
+    });
+    await tx.insert(schema.account).values({
+      id: crypto.randomUUID(),
+      userId,
+      accountId: userId,
+      providerId: "credential",
+      password: passwordHash,
+    });
   });
-
-  await db()
-    .update(schema.user)
-    .set({ role: "admin", mustChangePassword: true })
-    .where(eq(schema.user.email, email));
 
   log.info(
     { email },

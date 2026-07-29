@@ -6,7 +6,7 @@
 export { validate } from "./validate.ts";
 export { qualify } from "./qualify.ts";
 export { redeem } from "./redeem.ts";
-export { stackRedeem } from "./stack.ts";
+export { stackRedeem, IdempotencyKeyConflictError } from "./stack.ts";
 export { rollback } from "./rollback.ts";
 export type {
   RedeemFailure,

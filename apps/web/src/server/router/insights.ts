@@ -29,7 +29,15 @@ const summary = os.insights.summary.use(requireSession).handler(async () => {
   const sinceDays = 30;
   const sinceTs = sql`NOW() - INTERVAL '30 days'`;
 
-  const [redemptionsToday, redemptions7, redemptions30] = await Promise.all([
+  const [
+    redemptionsToday,
+    redemptions7,
+    redemptions30,
+    dailyRows,
+    topCampaignsRows,
+    failureRows,
+    webhookRows,
+  ] = await Promise.all([
     db().execute<{ total: number }>(
       sql`SELECT count(*)::int AS total FROM redemption
           WHERE result = 'SUCCESS' AND created_at >= NOW() - INTERVAL '1 day'`,
@@ -42,47 +50,51 @@ const summary = os.insights.summary.use(requireSession).handler(async () => {
       sql`SELECT count(*)::int AS total FROM redemption
           WHERE result = 'SUCCESS' AND created_at >= ${sinceTs}`,
     ),
+    db().execute<{ day: string; total: number }>(sql`
+      SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+             count(*)::int AS total
+      FROM redemption
+      WHERE result = 'SUCCESS' AND created_at >= ${sinceTs}
+      GROUP BY day
+      ORDER BY day ASC
+    `),
+    db().execute<{
+      campaign_id: string;
+      campaign_name: string;
+      redemptions: number;
+    }>(sql`
+      SELECT v.campaign_id AS campaign_id, c.name AS campaign_name, count(*)::int AS redemptions
+      FROM redemption r
+      JOIN voucher v ON v.id = r.voucher_id
+      JOIN campaign c ON c.id = v.campaign_id
+      WHERE r.result = 'SUCCESS' AND r.created_at >= ${sinceTs}
+      GROUP BY v.campaign_id, c.name
+      ORDER BY redemptions DESC
+      LIMIT 5
+    `),
+    db().execute<{ reason: string; total: number }>(sql`
+      SELECT failure.reason, count(*)::int AS total
+      FROM (
+        SELECT COALESCE(failure_reason, 'unknown') AS reason, created_at
+        FROM redemption
+        WHERE result = 'FAILURE'
+        UNION ALL
+        SELECT COALESCE(payload->>'reason', 'unknown') AS reason, created_at
+        FROM event
+        WHERE type = 'voucher.validation_failed'
+      ) AS failure
+      WHERE failure.created_at >= ${sinceTs}
+      GROUP BY reason
+      ORDER BY total DESC
+      LIMIT 8
+    `),
+    db().execute<{ status: string; total: number }>(sql`
+      SELECT status, count(*)::int AS total
+      FROM webhook_delivery
+      WHERE created_at >= ${sinceTs}
+      GROUP BY status
+    `),
   ]);
-
-  const dailyRows = await db().execute<{ day: string; total: number }>(sql`
-    SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
-           count(*)::int AS total
-    FROM redemption
-    WHERE result = 'SUCCESS' AND created_at >= ${sinceTs}
-    GROUP BY day
-    ORDER BY day ASC
-  `);
-
-  const topCampaignsRows = await db().execute<{
-    campaign_id: string;
-    campaign_name: string;
-    redemptions: number;
-  }>(sql`
-    SELECT v.campaign_id AS campaign_id, c.name AS campaign_name, count(*)::int AS redemptions
-    FROM redemption r
-    JOIN voucher v ON v.id = r.voucher_id
-    JOIN campaign c ON c.id = v.campaign_id
-    WHERE r.result = 'SUCCESS' AND r.created_at >= ${sinceTs}
-    GROUP BY v.campaign_id, c.name
-    ORDER BY redemptions DESC
-    LIMIT 5
-  `);
-
-  const failureRows = await db().execute<{ reason: string; total: number }>(sql`
-    SELECT COALESCE(failure_reason, 'unknown') AS reason, count(*)::int AS total
-    FROM redemption
-    WHERE result = 'FAILURE' AND created_at >= ${sinceTs}
-    GROUP BY reason
-    ORDER BY total DESC
-    LIMIT 8
-  `);
-
-  const webhookRows = await db().execute<{ status: string; total: number }>(sql`
-    SELECT status, count(*)::int AS total
-    FROM webhook_delivery
-    WHERE created_at >= ${sinceTs}
-    GROUP BY status
-  `);
 
   const counters: { redemptionsToday: number; redemptions7d: number; redemptions30d: number } = {
     redemptionsToday: redemptionsToday.rows[0]?.total ?? 0,

@@ -4,16 +4,18 @@
 # The same image runs the web service by default and the worker service when
 # started with: node apps/worker/dist/index.js
 
-FROM node:26-alpine AS base
+FROM node:26-trixie-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 ENV CI=true
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm install -g pnpm@10.23.0
+RUN npm install -g pnpm@10.34.5
 WORKDIR /app
 
 FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
+# Required by pnpm.patchedDependencies during install.
+COPY patches/ patches/
 COPY apps/web/package.json apps/web/
 COPY apps/worker/package.json apps/worker/
 COPY packages/config/package.json packages/config/
@@ -36,7 +38,8 @@ RUN --mount=type=cache,target=/app/apps/web/.next/cache pnpm --filter @offerkit/
 FROM builder AS worker-prod-deps
 RUN --mount=type=cache,target=/pnpm/store pnpm --filter @offerkit/worker deploy --prod --legacy --ignore-scripts /prod/worker
 
-FROM base AS runtime
+FROM gcr.io/distroless/nodejs26-debian13:nonroot AS runtime
+WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
@@ -49,7 +52,6 @@ COPY --from=builder /app/apps/worker/package.json ./apps/worker/package.json
 COPY --from=builder /app/apps/worker/dist ./apps/worker/dist
 COPY --from=worker-prod-deps /prod/worker/node_modules ./apps/worker/node_modules
 COPY --from=builder /app/packages/db/drizzle ./packages/db/drizzle
-RUN node -e "require('node:fs').writeFileSync('package.json', JSON.stringify({ scripts: { start: 'node apps/web/server.js', worker: 'node apps/worker/dist/index.js' } }, null, 2) + '\n')"
 
 EXPOSE 3000 9091
-CMD ["node", "apps/web/server.js"]
+CMD ["apps/web/server.js"]

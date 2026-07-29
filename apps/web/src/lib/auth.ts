@@ -1,10 +1,29 @@
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { sso } from "@better-auth/sso";
+import { and, eq } from "drizzle-orm";
 import { schema } from "@offerkit/db";
 import { sendEmail } from "@offerkit/core/email";
+import { logger } from "@offerkit/core/observability";
 import { db } from "./db.ts";
 
 let cached: ReturnType<typeof build> | undefined;
+const log = logger.child({ component: "auth" });
+
+function normalizeClaimList(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+export function samlRoleFromGroups(
+  value: unknown,
+  adminGroup: string,
+): "admin" | "member" | undefined {
+  if (value === undefined || value === null) return undefined;
+  return normalizeClaimList(value).includes(adminGroup) ? "admin" : "member";
+}
 
 function build() {
   const baseURL = process.env["OFFERKIT_PUBLIC_URL"] ?? "http://localhost:3000";
@@ -12,9 +31,30 @@ function build() {
   if (!secret) {
     throw new Error("BETTER_AUTH_SECRET is not set");
   }
+  const samlEnabled = process.env["SAML_ENABLED"] === "true";
+  // No deployment-specific defaults: a misconfigured self-host must fail
+  // loudly rather than silently point at somebody else's IdP.
+  const requireSamlEnv = (name: string): string => {
+    const value = process.env[name];
+    if (!value) throw new Error(`${name} is required when SAML_ENABLED=true`);
+    return value;
+  };
+  const samlCertificate = samlEnabled ? requireSamlEnv("SAML_IDP_CERTIFICATE") : "";
+  const samlIdpEntityId = samlEnabled ? requireSamlEnv("SAML_IDP_ENTITY_ID") : "";
+  const samlEntryPoint = samlEnabled ? requireSamlEnv("SAML_IDP_SSO_URL") : "";
+  const samlEmailDomain = samlEnabled ? requireSamlEnv("SAML_EMAIL_DOMAIN") : "";
+  const samlProviderId = process.env["SAML_PROVIDER_ID"] ?? "authentik";
+  const samlIssuer = process.env["SAML_SP_ENTITY_ID"] ?? baseURL;
+  const samlCallbackUrl = `${baseURL}/api/auth/sso/saml2/sp/acs/${samlProviderId}`;
+  const samlGroupsAttribute =
+    process.env["SAML_GROUPS_ATTRIBUTE"] ?? "http://schemas.xmlsoap.org/claims/Group";
+  const samlAdminGroup = process.env["SAML_ADMIN_GROUP"] ?? "platform-admins";
+  const samlAllowIdpInitiated = process.env["SAML_ALLOW_IDP_INITIATED"] === "true";
+
   return betterAuth({
     baseURL,
     secret,
+    trustedOrigins: [baseURL],
     database: drizzleAdapter(db(), {
       provider: "pg",
       schema: {
@@ -26,6 +66,7 @@ function build() {
     }),
     emailAndPassword: {
       enabled: true,
+      disableSignUp: true,
       requireEmailVerification: false,
       sendResetPassword: async ({ user, url }) => {
         await sendEmail({
@@ -48,6 +89,103 @@ function build() {
         disabledAt: { type: "date", required: false, input: false },
       },
     },
+    databaseHooks: {
+      session: {
+        create: {
+          before: async (session) => {
+            const user = await db().query.user.findFirst({
+              where: eq(schema.user.id, session.userId),
+              columns: { disabledAt: true },
+            });
+            if (!user || user.disabledAt) {
+              throw new APIError("FORBIDDEN", { message: "This account is disabled" });
+            }
+            return { data: session };
+          },
+        },
+      },
+    },
+    plugins: samlEnabled
+      ? [
+          sso({
+            defaultSSO: [
+              {
+                providerId: samlProviderId,
+                domain: samlEmailDomain,
+                samlConfig: {
+                  issuer: samlIssuer,
+                  entryPoint: samlEntryPoint,
+                  cert: samlCertificate,
+                  idpMetadata: {
+                    entityID: samlIdpEntityId,
+                    cert: samlCertificate,
+                  },
+                  callbackUrl: samlCallbackUrl,
+                  idpInitiatedCallbackUrl: `${baseURL}/dashboard`,
+                  audience: samlIssuer,
+                  wantAssertionsSigned: true,
+                  authnRequestsSigned: false,
+                  signatureAlgorithm: "sha256",
+                  digestAlgorithm: "sha256",
+                  identifierFormat:
+                    "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+                  spMetadata: { entityID: samlIssuer, binding: "post" },
+                  mapping: {
+                    id: "nameID",
+                    email:
+                      "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+                    name: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name",
+                    extraFields: { groups: samlGroupsAttribute },
+                  },
+                },
+              },
+            ],
+            saml: {
+              enableInResponseToValidation: true,
+              allowIdpInitiated: samlAllowIdpInitiated,
+              requireTimestamps: true,
+              clockSkew: 5 * 60 * 1000,
+              maxResponseSize: 256 * 1024,
+              maxMetadataSize: 100 * 1024,
+            },
+            provisionUserOnEveryLogin: true,
+            provisionUser: async ({ user, userInfo }) => {
+              const existing = await db().query.user.findFirst({
+                where: eq(schema.user.id, user.id),
+                columns: { disabledAt: true },
+              });
+              if (existing?.disabledAt) {
+                throw new APIError("FORBIDDEN", { message: "This account is disabled" });
+              }
+              // A pending password change belongs to the local credential, and
+              // signing in through the IdP does not satisfy it. Only clear the
+              // gate for users who have no password to change.
+              const credential = await db().query.account.findFirst({
+                where: and(
+                  eq(schema.account.userId, user.id),
+                  eq(schema.account.providerId, "credential"),
+                ),
+                columns: { id: true },
+              });
+              const role = samlRoleFromGroups(userInfo["groups"], samlAdminGroup);
+              if (role === undefined) {
+                log.warn(
+                  { userId: user.id, groupsAttribute: samlGroupsAttribute },
+                  "SAML assertion omitted the configured groups claim; preserving the existing role",
+                );
+              }
+              await db()
+                .update(schema.user)
+                .set({
+                  ...(role === undefined ? {} : { role }),
+                  ...(credential ? {} : { mustChangePassword: false }),
+                  updatedAt: new Date(),
+                })
+                .where(eq(schema.user.id, user.id));
+            },
+          }),
+        ]
+      : [],
   });
 }
 

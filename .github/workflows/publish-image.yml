@@ -39,7 +39,7 @@ jobs:
         id: image
         shell: bash
         run: |
-          image="ghcr.io/offerkit/offerkit"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/offerkit"
           short_sha="$(git rev-parse --short=12 HEAD)"
           tags="${image}:sha-${short_sha}"
           platforms="linux/amd64"
@@ -93,5 +93,5 @@ jobs:
           labels: |
             org.opencontainers.image.title=OfferKit
             org.opencontainers.image.description=Self-hostable promotion engine runtime
-            org.opencontainers.image.source=https://github.com/offerkit/offerkit
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ steps.image.outputs.revision }}

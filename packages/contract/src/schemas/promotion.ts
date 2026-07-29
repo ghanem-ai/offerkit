@@ -60,6 +60,7 @@ export const qualificationReason = z.enum([
   "no_discount_effect",
   "exclusivity_lost",
   "zero_after_running_total",
+  "no_eligible_items",
 ]);
 
 export const qualifiedPromotion = z.object({

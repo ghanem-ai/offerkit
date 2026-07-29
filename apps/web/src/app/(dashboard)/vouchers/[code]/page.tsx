@@ -18,16 +18,14 @@ import {
   type VoucherFormState,
 } from "@/components/dashboard/voucher-form";
 import { voucherFormToUpdateInput } from "@/lib/forms/voucher";
+import { fromIsoToLocalDateTime } from "@/lib/forms/shared";
 import { formatMinorCurrency } from "@/lib/money";
 import { ovx } from "@/lib/sdk";
+import { VoucherStatusBadge } from "@/components/dashboard/voucher-status-badge";
+import { voucherStatus } from "@/lib/voucher-status";
 
 interface PageProps {
   params: Promise<{ code: string }>;
-}
-
-function fromIso(iso: string | null | undefined): string {
-  if (!iso) return "";
-  return new Date(iso).toISOString().slice(0, 16);
 }
 
 export default function VoucherDetailPage({ params }: PageProps) {
@@ -43,20 +41,39 @@ export default function VoucherDetailPage({ params }: PageProps) {
     queryFn: () => ovx().vouchers.get({ params: { code } }),
   });
 
-  const { data: campaign } = useQuery({
+  const { data: campaign, isLoading: campaignLoading } = useQuery({
     queryKey: ["campaigns", data?.campaignId],
     queryFn: () => ovx().campaigns.get({ params: { id: data?.campaignId ?? "" } }),
     enabled: Boolean(data?.campaignId),
   });
+  const { data: workspace } = useQuery({
+    queryKey: ["workspace"],
+    queryFn: () => ovx().workspace.get(),
+  });
+
+  const { data: customer } = useQuery({
+    queryKey: ["customers", data?.customerId],
+    queryFn: () => ovx().customers.get({ params: { id: data?.customerId ?? "" } }),
+    enabled: Boolean(data?.customerId),
+  });
 
   const update = useMutation({
-    mutationFn: (state: VoucherFormState) =>
-      ovx().vouchers.update({
+    mutationFn: async (state: VoucherFormState) => {
+      const patch = voucherFormToUpdateInput(
+        state,
+        campaign?.timezone ?? workspace?.defaultTimezone ?? "UTC",
+      );
+      if (state.customerExternalId) {
+        const resolved = await ovx().customers.upsert({
+          externalId: state.customerExternalId,
+        });
+        patch.customerId = resolved.customer.id;
+      }
+      return ovx().vouchers.update({
         params: { code },
-        body: {
-          patch: voucherFormToUpdateInput(state),
-        },
-      }),
+        body: { patch },
+      });
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["vouchers"] });
       toast.success(gt("Voucher updated"));
@@ -114,8 +131,23 @@ export default function VoucherDetailPage({ params }: PageProps) {
         <T>Voucher not found.</T>
       </p>
     );
+  if (data.campaignId && campaignLoading) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        <T>Loading…</T>
+      </p>
+    );
+  }
+  if (data.campaignId && !campaign) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        <T>Campaign not found; voucher dates cannot be edited safely.</T>
+      </p>
+    );
+  }
 
   const discount = data.discount;
+  const timeZone = campaign?.timezone ?? workspace?.defaultTimezone ?? "UTC";
   const initial: VoucherFormState = {
     code: data.code,
     campaignId: data.campaignId ?? "",
@@ -129,16 +161,18 @@ export default function VoucherDetailPage({ params }: PageProps) {
     giftBalance: data.giftBalance ?? "",
     redemptionLimit: data.redemptionLimit ?? "",
     perUserRedemptionLimit: data.perUserRedemptionLimit ?? "",
-    customerId: data.customerId ?? "",
+    customerId: customer?.externalId ? "" : (data.customerId ?? ""),
+    customerExternalId: customer?.externalId ?? "",
     priority: data.priority,
     exclusive: data.exclusive,
     active: data.active,
-    startDate: fromIso(data.startDate),
-    endDate: fromIso(data.endDate),
+    startDate: fromIsoToLocalDateTime(data.startDate, timeZone),
+    endDate: fromIsoToLocalDateTime(data.endDate, timeZone),
   };
 
   const isGift = data.type === "GIFT_CARD";
   const campaignCurrency = campaign?.currency;
+  const status = voucherStatus(data);
 
   return (
     <div className="space-y-4">
@@ -157,9 +191,7 @@ export default function VoucherDetailPage({ params }: PageProps) {
               <T>Updated {new Date(data.updatedAt).toLocaleString()}</T>
             </p>
           </div>
-          <Badge variant={data.active ? "default" : "secondary"}>
-            {data.active ? gt("active") : gt("inactive")}
-          </Badge>
+          <VoucherStatusBadge status={status} />
         </div>
         <ConfirmDialog
           trigger={
@@ -180,7 +212,8 @@ export default function VoucherDetailPage({ params }: PageProps) {
       </header>
 
       <VoucherForm
-        key={data.updatedAt}
+        timeZone={timeZone}
+        key={`${data.updatedAt}:${customer?.updatedAt ?? ""}`}
         mode="edit"
         initial={initial}
         submitLabel={gt("Save changes")}

@@ -150,7 +150,8 @@ function skip(tier: PromotionTierRow, campaign: CampaignRow, reason: string, mes
       | "rule_error"
       | "no_discount_effect"
       | "exclusivity_lost"
-      | "zero_after_running_total",
+      | "zero_after_running_total"
+      | "no_eligible_items",
     message,
   };
 }
@@ -282,7 +283,9 @@ const qualify = os.promotions.qualify
           message:
             entry.reason === "exclusivity_lost"
               ? "Promotion was skipped because an exclusive promotion won"
-              : "Promotion produced no discount after previous promotions",
+              : entry.reason === "no_eligible_items"
+                ? "Promotion does not apply to any line item in this order"
+                : "Promotion produced no discount after previous promotions",
         });
       }
     }

@@ -34,7 +34,9 @@ export const breakdownEntry = z.object({
   code: z.string(),
   amount: z.number().int(),
   type: z.enum(["AMOUNT", "PERCENTAGE"]).optional(),
-  reason: z.enum(["exclusivity_lost", "zero_after_running_total"]).optional(),
+  reason: z
+    .enum(["exclusivity_lost", "zero_after_running_total", "no_eligible_items"])
+    .optional(),
 });
 
 export const redemptionExplanation = z.object({
@@ -54,6 +56,7 @@ export const redemptionExplanation = z.object({
     "order_required",
     "exclusivity_lost",
     "zero_after_running_total",
+    "no_eligible_items",
     "gift_card_stacking_unsupported",
   ]),
   message: z.string(),

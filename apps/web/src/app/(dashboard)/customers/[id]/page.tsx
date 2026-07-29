@@ -4,7 +4,12 @@ import Link from "next/link";
 import { use } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { T, useGT } from "gt-next/client";
 import { toast } from "sonner";
 import { ArrowLeft, Trash2 } from "lucide-react";
@@ -13,6 +18,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
+import { Badge } from "@/components/ui/badge";
+import { DateTime } from "@/components/dashboard/date-time";
+import { formatMinorCurrency } from "@/lib/money";
 import { ovx } from "@/lib/sdk";
 
 interface PageProps {
@@ -24,9 +32,12 @@ interface CustomerData {
   email: string | null;
   name: string | null;
   phone: string | null;
+  externalId: string | null;
   createdAt: string;
   updatedAt: string;
 }
+
+const REDEMPTIONS_PAGE_SIZE = 20;
 
 function CustomerForm({
   data,
@@ -41,7 +52,12 @@ function CustomerForm({
   const gt = useGT();
 
   const update = useMutation({
-    mutationFn: (input: { email?: string; name?: string; phone?: string }) =>
+    mutationFn: (input: {
+      email?: string;
+      name?: string;
+      phone?: string;
+      externalId?: string;
+    }) =>
       ovx().customers.update({ params: { id: data.id }, body: { patch: input } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["customers"] });
@@ -57,17 +73,36 @@ function CustomerForm({
       email: data.email ?? "",
       name: data.name ?? "",
       phone: data.phone ?? "",
+      externalId: data.externalId ?? "",
     },
     onSubmit: ({ value }) => {
       update.mutate({
         email: value.email || undefined,
         name: value.name || undefined,
         phone: value.phone || undefined,
+        externalId: value.externalId || undefined,
       });
     },
   });
 
   const headerLabel = data.name ?? data.email ?? gt("(unnamed)");
+  const {
+    data: redemptionPages,
+    isLoading: redemptionsLoading,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["customers", data.id, "redemptions"],
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      ovx().customers.redemptions({
+        params: { id: data.id },
+        query: { limit: REDEMPTIONS_PAGE_SIZE, ...(pageParam ? { cursor: pageParam } : {}) },
+      }),
+    getNextPageParam: (lastPage) => lastPage.next,
+  });
+  const redemptions = redemptionPages?.pages.flatMap((page) => page.data);
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4">
@@ -83,7 +118,9 @@ function CustomerForm({
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">{headerLabel}</h1>
             <p className="text-sm text-muted-foreground">
-              <T>Created {new Date(data.createdAt).toLocaleString()}</T>
+              <T>
+                Created <DateTime value={data.createdAt} />
+              </T>
             </p>
           </div>
         </div>
@@ -165,6 +202,21 @@ function CustomerForm({
                 </div>
               )}
             </form.Field>
+            <form.Field name="externalId">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor={field.name}>
+                    <T>External customer ID</T>
+                  </Label>
+                  <Input
+                    id={field.name}
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    placeholder={gt("Customer ID from your application")}
+                  />
+                </div>
+              )}
+            </form.Field>
             <div className="flex justify-end gap-2">
               <form.Subscribe selector={(s) => [s.isDirty, s.isSubmitting] as const}>
                 {([isDirty, isSubmitting]) => (
@@ -188,9 +240,79 @@ function CustomerForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            <T>This customer has no redemptions yet.</T>
-          </p>
+          {redemptionsLoading ? (
+            <p className="text-sm text-muted-foreground">
+              <T>Loading…</T>
+            </p>
+          ) : !redemptions || redemptions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              <T>This customer has no redemptions yet.</T>
+            </p>
+          ) : (
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full text-sm">
+                <thead className="border-b bg-muted/40 text-left">
+                  <tr>
+                    <th className="px-3 py-2 font-medium"><T>Voucher</T></th>
+                    <th className="px-3 py-2 font-medium"><T>Result</T></th>
+                    <th className="px-3 py-2 text-right font-medium"><T>Amount</T></th>
+                    <th className="px-3 py-2 font-medium"><T>External order</T></th>
+                    <th className="px-3 py-2 text-right font-medium"><T>Created</T></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {redemptions.map((redemption) => (
+                    <tr key={redemption.id}>
+                      <td className="px-3 py-2 font-mono">{redemption.voucherCode}</td>
+                      <td className="px-3 py-2">
+                        <Badge
+                          variant={
+                            redemption.result === "SUCCESS"
+                              ? "default"
+                              : redemption.result === "FAILURE"
+                                ? "destructive"
+                                : "secondary"
+                          }
+                        >
+                          {redemption.result}
+                        </Badge>
+                        {redemption.failureReason ? (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {redemption.failureReason}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono">
+                        {redemption.amount === null
+                          ? "-"
+                          : redemption.currency
+                            ? formatMinorCurrency(redemption.amount, redemption.currency)
+                            : String(redemption.amount)}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs">
+                        {redemption.externalOrderId ?? "-"}
+                      </td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">
+                        <DateTime value={redemption.createdAt} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {hasNextPage ? (
+            <div className="mt-3 flex justify-center">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isFetchingNextPage}
+                onClick={() => void fetchNextPage()}
+              >
+                {isFetchingNextPage ? <T>Loading…</T> : <T>Load more</T>}
+              </Button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>

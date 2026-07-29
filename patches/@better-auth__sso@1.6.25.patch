@@ -1,0 +1,7 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 6ac1d7a03a9e9ce463834eea5a2505151d970111..c2685312393085d7193597d81c9d68b721dcf847 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -2071 +2071 @@ async function processSAMLResponse(ctx, params, options) {
+-	const inResponseTo = extract.inResponseTo;
++	const inResponseTo = extract.response?.inResponseTo ?? extract.inResponseTo;

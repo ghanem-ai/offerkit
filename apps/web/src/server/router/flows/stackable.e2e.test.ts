@@ -77,6 +77,14 @@ describe.skipIf(!E2E_ENABLED)("stackable redemption", () => {
     });
     expect(replay.batchId).toBe(first.batchId);
     expect(replay.idempotent).toBe(true);
+
+    await expect(
+      client.vouchers.stackRedeem({
+        codes: [c1, c2, c3],
+        order: { amount: 6_000, currency: "USD" },
+        idempotencyKey,
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
   });
 
   it("gift card in a stack returns voucher_disabled or similar refusal", async () => {

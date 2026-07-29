@@ -1,5 +1,5 @@
 import { ORPCError, implement } from "@orpc/server";
-import { and, eq, ilike, isNull, or } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { schema } from "@offerkit/db";
 import { contract } from "@offerkit/contract/router";
 import { emitEvent } from "@offerkit/core/events";
@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/server/middleware/auth";
 import {
   decodeCursor,
+  encodeCursor,
   paginatedSoftDeleteList,
   softDeleteById,
   toCustomer,
@@ -183,6 +184,56 @@ const remove = os.customers.delete
     return { ok: true as const };
   });
 
+const redemptions = os.customers.redemptions
+  .use(requireSession)
+  .handler(async ({ input }) => {
+    const customer = await db().query.customer.findFirst({
+      columns: { id: true },
+      where: and(eq(schema.customer.id, input.params.id), isNull(schema.customer.deletedAt)),
+    });
+    if (!customer) throw new ORPCError("NOT_FOUND", { message: "Customer not found" });
+
+    const limit = input.query.limit;
+    const cursor = decodeCursor(input.query.cursor);
+    const filters = [eq(schema.redemption.customerId, input.params.id)];
+    if (cursor) {
+      filters.push(
+        sql`(${schema.redemption.createdAt}, ${schema.redemption.id}) < (${cursor.createdAt}, ${cursor.id})`,
+      );
+    }
+    const rows = await db()
+      .select({
+        id: schema.redemption.id,
+        voucherCode: schema.voucher.code,
+        result: schema.redemption.result,
+        amount: schema.redemption.amount,
+        currency: schema.campaign.currency,
+        failureReason: schema.redemption.failureReason,
+        externalOrderId: schema.redemption.externalOrderId,
+        createdAt: schema.redemption.createdAt,
+      })
+      .from(schema.redemption)
+      .innerJoin(schema.voucher, eq(schema.redemption.voucherId, schema.voucher.id))
+      .leftJoin(schema.campaign, eq(schema.voucher.campaignId, schema.campaign.id))
+      .where(and(...filters))
+      .orderBy(desc(schema.redemption.createdAt), desc(schema.redemption.id))
+      .limit(limit + 1);
+
+    const hasMore = rows.length > limit;
+    const page = rows.slice(0, limit);
+    const last = page[page.length - 1];
+    return {
+      data: page.map((row) => ({
+        ...row,
+        createdAt: row.createdAt.toISOString(),
+      })),
+      next:
+        hasMore && last
+          ? encodeCursor({ createdAt: last.createdAt.toISOString(), id: last.id })
+          : undefined,
+    };
+  });
+
 export const customersRouter = {
   list,
   get,
@@ -191,4 +242,5 @@ export const customersRouter = {
   upsert,
   update,
   delete: remove,
+  redemptions,
 };

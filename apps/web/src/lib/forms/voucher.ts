@@ -28,6 +28,10 @@ const emptyOrCustomerId = z.union([
   z.literal(""),
   voucherCreateInput.shape.customerId.unwrap(),
 ]);
+const emptyOrCustomerExternalId = z.union([
+  z.literal(""),
+  z.string().min(1).max(256),
+]);
 const emptyOrMaxDiscount = z.union([
   z.literal(""),
   voucherDiscount.shape.maxDiscountAmount.unwrap(),
@@ -44,6 +48,7 @@ const voucherFormFields = z.object({
   redemptionLimit: emptyOrRedemptionLimit,
   perUserRedemptionLimit: emptyOrPerUserLimit,
   customerId: emptyOrCustomerId,
+  customerExternalId: emptyOrCustomerExternalId,
   priority: voucherCreateInput.shape.priority.unwrap(),
   exclusive: z.boolean(),
   active: z.boolean(),
@@ -51,9 +56,17 @@ const voucherFormFields = z.object({
   endDate: optionalLocalDateTime,
 });
 
-function withVoucherRules(mode: "create" | "edit") {
+function withVoucherRules(mode: "create" | "edit", timeZone?: string) {
   return voucherFormFields.superRefine((value, context) => {
-    validateDateRange(value, context);
+    validateDateRange(value, context, timeZone);
+
+    if (value.customerId && value.customerExternalId) {
+      context.addIssue({
+        code: "custom",
+        path: ["customerExternalId"],
+        message: "Use either an external customer ID or an OfferKit customer ID, not both",
+      });
+    }
 
     if (value.type === "DISCOUNT") {
       if (value.discountValue < 1) {
@@ -86,6 +99,10 @@ function withVoucherRules(mode: "create" | "edit") {
   });
 }
 
+export function voucherFormSchema(mode: "create" | "edit", timeZone?: string) {
+  return withVoucherRules(mode, timeZone);
+}
+
 export const voucherCreateFormSchema = withVoucherRules("create");
 export const voucherEditFormSchema = withVoucherRules("edit");
 
@@ -93,7 +110,7 @@ export type VoucherFormState = z.infer<typeof voucherFormFields>;
 export type VoucherCreateInput = z.infer<typeof voucherCreateInput>;
 export type VoucherUpdateInput = z.infer<typeof voucherUpdateInput>;
 
-function commonVoucherInput(state: VoucherFormState) {
+function commonVoucherInput(state: VoucherFormState, timeZone?: string) {
   return {
     ...(state.type === "GIFT_CARD"
       ? {
@@ -116,23 +133,29 @@ function commonVoucherInput(state: VoucherFormState) {
     perUserRedemptionLimit:
       state.perUserRedemptionLimit === "" ? undefined : state.perUserRedemptionLimit,
     customerId: state.customerId || undefined,
-    startDate: toIsoOrUndefined(state.startDate),
-    endDate: toIsoOrUndefined(state.endDate),
+    startDate: toIsoOrUndefined(state.startDate, timeZone),
+    endDate: toIsoOrUndefined(state.endDate, timeZone),
   };
 }
 
-export function voucherFormToCreateInput(state: VoucherFormState): VoucherCreateInput {
+export function voucherFormToCreateInput(
+  state: VoucherFormState,
+  timeZone?: string,
+): VoucherCreateInput {
   return voucherCreateInput.parse({
-    ...commonVoucherInput(state),
+    ...commonVoucherInput(state, timeZone),
     code: state.code || undefined,
     campaignId: state.campaignId || undefined,
     type: state.type,
   });
 }
 
-export function voucherFormToUpdateInput(state: VoucherFormState): VoucherUpdateInput {
+export function voucherFormToUpdateInput(
+  state: VoucherFormState,
+  timeZone?: string,
+): VoucherUpdateInput {
   return voucherUpdateInput.parse({
-    ...commonVoucherInput(state),
+    ...commonVoucherInput(state, timeZone),
     active: state.active,
   });
 }

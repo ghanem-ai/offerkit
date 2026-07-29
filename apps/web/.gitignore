@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/e2e/.storage-state.json
+/test-results
+/playwright-report
 
 # next.js
 /.next/

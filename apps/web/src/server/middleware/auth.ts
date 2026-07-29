@@ -85,7 +85,7 @@ export const requireSession = os
         });
       }
       if (user.rateLimitRps !== null) {
-        takeToken(user.id, user.rateLimitRps);
+        await takeToken(user.id, user.rateLimitRps);
       }
     }
 

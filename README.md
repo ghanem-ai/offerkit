@@ -27,7 +27,7 @@ OfferKit is open-source promotion infrastructure for coupons, gift cards, loyalt
 
 ## 🤖 Why OfferKit
 
-**Agent-first.** The MCP server is a first-class surface, not bolted on. Every mutating endpoint declares its risk level (`safe` / `mutating` / `destructive`) so LLM hosts can render the right confirmation. New procedures opt into MCP exposure declaratively via `.meta()` — no separate package to update.
+**Agent-first.** The MCP server is a first-class surface, not bolted on. Every endpoint carries a risk level (`safe` / `mutating` / `destructive`) so LLM hosts can render the right confirmation — inferred from the HTTP method, or declared explicitly via `.meta()`. Every contract procedure is exposed as an MCP tool automatically, so new procedures show up without a separate package to update.
 
 **Dev-friendly.** The typed SDK is derived directly from the oRPC contract, so client types stay in lockstep with the server with zero codegen. Strict TypeScript, linted against explicit `any`, with typed contracts at API boundaries. The `/docs` site lives inside the app (Fumadocs). Local-first dev with Docker compose, plus CI and lefthook quality gates.
 
@@ -47,7 +47,8 @@ OfferKit is open-source promotion infrastructure for coupons, gift cards, loyalt
 - ⚙️ Background jobs — Redis/BullMQ by default, with a Postgres fallback when Redis is not configured
 - 🔭 Observability — OpenTelemetry traces, metrics, logs out of the box
 - 🔐 Audit log — every mutation with actor, before/after, IP, user agent
-- 🤖 MCP server — declaratively-exposed tools with risk-level metadata
+- 🪪 SAML single sign-on — optional; group-claim-driven admin role, users provisioned on first login
+- 🤖 MCP server — every contract procedure exposed as a tool, with risk-level metadata
 - 📜 MIT — first-party packages throughout the monorepo
 
 ## 🚀 Quick Start
@@ -61,7 +62,7 @@ cp .env.example .env
 docker compose up
 ```
 
-Visit <http://localhost:3000> and sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`. The example defaults work locally; edit them before deploying. The first sign-in forces a password change.
+Visit <http://localhost:3000> and sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`. The example defaults work locally; edit them before deploying. The first sign-in forces a password change. Public sign-up is disabled — further accounts are created by an admin under **Settings → Users**, or provisioned from your IdP when [SAML SSO](apps/web/content/docs/self-host.mdx) is enabled.
 
 ## 🏠 Self-Host
 
@@ -79,13 +80,13 @@ Image channels:
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/offerkit?referralCode=IxSuAK)
 
-In one Railway project, create Postgres and Redis, then create two Docker Image services from `ghcr.io/offerkit/offerkit:latest`. `latest` is fine for evaluation; production deployments should pin a release tag such as `ghcr.io/offerkit/offerkit:v0.1.0`. The public `web` service uses the default command. The private `worker` service overrides the command to `node apps/worker/dist/index.js` and should not have a public domain. Reference Postgres's `DATABASE_URL` and Redis's `REDIS_URL` into both app services. Set `BETTER_AUTH_SECRET`, `OFFERKIT_PUBLIC_URL`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` on the `web` service. Set the same `WEBHOOK_SECRET_ENCRYPTION_KEY` (generate one with `openssl rand -base64 32`) on both services.
+In one Railway project, create Postgres and Redis, then create two Docker Image services from `ghcr.io/offerkit/offerkit:latest`. `latest` is fine for evaluation; production deployments should pin a release tag such as `ghcr.io/offerkit/offerkit:v0.1.0`. The public `web` service uses the default command. The private `worker` service overrides the command to `apps/worker/dist/index.js` (the image entrypoint is already `node`) and should not have a public domain. Reference Postgres's `DATABASE_URL` and Redis's `REDIS_URL` into both app services. Set `BETTER_AUTH_SECRET`, `OFFERKIT_PUBLIC_URL`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` on the `web` service. Set the same `WEBHOOK_SECRET_ENCRYPTION_KEY` (generate one with `openssl rand -base64 32`) on both services.
 
 ### Diploi
 
 [![Launch with Diploi](https://diploi.com/launch-big.svg)](https://diploi.com/launch/akshitkrnagpal/offerkit)
 
-Create one Diploi project with a public `web` component, a private `worker` component, Postgres, and Redis. Use the same published image, `ghcr.io/offerkit/offerkit:latest`, for both components. `latest` is fine for evaluation; production deployments should pin a release tag such as `ghcr.io/offerkit/offerkit:v0.1.0`. The worker command is `node apps/worker/dist/index.js`. Wire Postgres's `DATABASE_URL` and Redis's `REDIS_URL` into both components. Set `BETTER_AUTH_SECRET`, `OFFERKIT_PUBLIC_URL`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` on `web`; set `WORKER_HEALTH_PORT=9091` on `worker`. Set the same `WEBHOOK_SECRET_ENCRYPTION_KEY` on both components.
+Create one Diploi project with a public `web` component, a private `worker` component, Postgres, and Redis. Use the same published image, `ghcr.io/offerkit/offerkit:latest`, for both components. `latest` is fine for evaluation; production deployments should pin a release tag such as `ghcr.io/offerkit/offerkit:v0.1.0`. The worker command is `apps/worker/dist/index.js` (the image entrypoint is already `node`). Wire Postgres's `DATABASE_URL` and Redis's `REDIS_URL` into both components. Set `BETTER_AUTH_SECRET`, `OFFERKIT_PUBLIC_URL`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` on `web`; set `WORKER_HEALTH_PORT=9091` on `worker`. Set the same `WEBHOOK_SECRET_ENCRYPTION_KEY` on both components.
 
 ## 📦 SDK, CLI, MCP
 

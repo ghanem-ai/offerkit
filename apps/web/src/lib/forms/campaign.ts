@@ -39,8 +39,8 @@ function commonCampaignInput(state: CampaignFormState) {
     description: state.description || undefined,
     currency: state.currency,
     timezone: state.timezone || undefined,
-    startDate: toIsoOrUndefined(state.startDate),
-    endDate: toIsoOrUndefined(state.endDate),
+    startDate: toIsoOrUndefined(state.startDate, state.timezone),
+    endDate: toIsoOrUndefined(state.endDate, state.timezone),
     perUserRedemptionLimit:
       state.perUserRedemptionLimit === "" ? undefined : state.perUserRedemptionLimit,
     autoApply: state.autoApply,

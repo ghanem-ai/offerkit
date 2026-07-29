@@ -15,15 +15,28 @@ export default function NewVoucherPage() {
   const search = useSearchParams();
   const campaignId = search.get("campaignId") ?? "";
 
-  const { data: campaign } = useQuery({
+  const { data: campaign, isLoading: campaignLoading } = useQuery({
     queryKey: ["campaigns", campaignId],
     queryFn: () => ovx().campaigns.get({ params: { id: campaignId } }),
     enabled: campaignId !== "",
   });
+  const { data: workspace, isLoading: workspaceLoading } = useQuery({
+    queryKey: ["workspace"],
+    queryFn: () => ovx().workspace.get(),
+  });
+  const timeZone = campaign?.timezone ?? workspace?.defaultTimezone ?? "UTC";
 
   const create = useMutation({
-    mutationFn: (state: VoucherFormState) =>
-      ovx().vouchers.create(voucherFormToCreateInput(state)),
+    mutationFn: async (state: VoucherFormState) => {
+      const input = voucherFormToCreateInput(state, timeZone);
+      if (state.customerExternalId) {
+        const resolved = await ovx().customers.upsert({
+          externalId: state.customerExternalId,
+        });
+        input.customerId = resolved.customer.id;
+      }
+      return ovx().vouchers.create(input);
+    },
     onSuccess: async (voucher) => {
       await queryClient.invalidateQueries({ queryKey: ["vouchers"] });
       toast.success(gt("Voucher created"));
@@ -33,6 +46,21 @@ export default function NewVoucherPage() {
       toast.error(err instanceof Error ? err.message : gt("Create failed"));
     },
   });
+
+  if ((campaignId && campaignLoading) || (!campaignId && workspaceLoading)) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        <T>Loading…</T>
+      </p>
+    );
+  }
+  if (campaignId && !campaign) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        <T>Campaign not found.</T>
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -45,6 +73,7 @@ export default function NewVoucherPage() {
         </p>
       </header>
       <VoucherForm
+        timeZone={timeZone}
         key={`${campaignId}:${campaign?.type ?? "default"}`}
         mode="create"
         initial={{
@@ -58,6 +87,7 @@ export default function NewVoucherPage() {
           redemptionLimit: "",
           perUserRedemptionLimit: "",
           customerId: "",
+          customerExternalId: "",
           priority: 0,
           exclusive: false,
           active: true,

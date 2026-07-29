@@ -41,10 +41,13 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
 // Tiny health server for Railway / docker healthcheck.
-// Honor PORT first (Railway and most PaaS assign it dynamically),
-// then WORKER_HEALTH_PORT for explicit overrides, then 9091 default.
-const healthPort = Number(process.env["PORT"] ?? process.env["WORKER_HEALTH_PORT"] ?? 9091);
+// WORKER_HEALTH_PORT wins as the explicit override (the shared runtime image
+// bakes PORT for the web app), then PORT for PaaS that assign it dynamically,
+// then the 9091 default.
+const healthPort = Number(process.env["WORKER_HEALTH_PORT"] ?? process.env["PORT"] ?? 9091);
 let lastHeartbeat = Date.now();
+let lastReclaimAt = 0;
+let reclaimInFlight = false;
 createServer((req, res) => {
   if (req.url === "/health") {
     res.writeHead(200, { "content-type": "application/json" });
@@ -70,6 +73,7 @@ async function bootstrap() {
   // Seed recurring jobs once. Their handlers reschedule themselves so
   // multiple replicas converge to a single pending row per type.
   await ensureScheduled(db, "loyalty.points.expire", new Date());
+  await ensureScheduled(db, "events.prune", new Date());
 }
 
 void bootstrap();
@@ -83,6 +87,24 @@ await runWorker({
   // is still running. /ready compares this against now() < 60s.
   onTick: () => {
     lastHeartbeat = Date.now();
+    if (
+      !process.env["REDIS_URL"] &&
+      !reclaimInFlight &&
+      Date.now() - lastReclaimAt >= 60_000
+    ) {
+      reclaimInFlight = true;
+      lastReclaimAt = Date.now();
+      void reclaimStaleJobs(db, 5 * 60_000)
+        .then((count) => {
+          if (count > 0) log.warn({ reclaimed: count }, "reclaimed stale jobs");
+        })
+        .catch((error: unknown) => {
+          log.error({ error }, "failed to reclaim stale jobs");
+        })
+        .finally(() => {
+          reclaimInFlight = false;
+        });
+    }
   },
 });
 

@@ -8,6 +8,7 @@ import {
   makeClient,
   mintTestKey,
   randomId,
+  rawRequest,
 } from "./_helpers";
 
 let db: Db | undefined;
@@ -27,6 +28,18 @@ afterAll(async () => {
 });
 
 describe.skipIf(!E2E_ENABLED)("orders CRUD + lifecycle + redemption attachment", () => {
+  it("accepts numeric pagination values from REST query strings", async () => {
+    if (!token) throw new Error("setup failed");
+
+    const response = await rawRequest(
+      new Request("http://test.local/api/v1/orders?limit=20", {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
   it("create → fulfill → cancel transitions, and redeem with orderId surfaces in orders.redemptions", async () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);

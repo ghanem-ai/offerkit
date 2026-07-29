@@ -15,6 +15,15 @@ export const campaignName = z
   .max(100)
   .refine((value) => value.trim().length > 0, "Name cannot be blank");
 
+export const timezoneName = z.string().refine((value) => {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}, "Must be a valid IANA timezone");
+
 export const codeConfig = z.object({
   length: z.number().int().min(4).max(32).optional(),
   prefix: z.string().max(20).optional(),
@@ -48,7 +57,7 @@ export const campaignCreateInput = z.object({
   description: z.string().max(500).optional(),
   type: campaignType,
   currency: z.string().length(3),
-  timezone: z.string().optional(),
+  timezone: timezoneName.optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
   codeConfig: codeConfig.optional(),

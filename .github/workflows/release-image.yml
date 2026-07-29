@@ -57,7 +57,7 @@ jobs:
             git push origin "${tag}"
           fi
 
-          image="ghcr.io/offerkit/offerkit"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/offerkit"
           short_sha="$(git rev-parse --short=12 HEAD)"
           {
             echo "tags<<EOF"
@@ -96,7 +96,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=OfferKit
             org.opencontainers.image.description=Self-hostable promotion engine runtime
-            org.opencontainers.image.source=https://github.com/offerkit/offerkit
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ steps.release.outputs.revision }}
 
       - name: Create GitHub image release
@@ -107,6 +107,7 @@ jobs:
           TAG: ${{ steps.release.outputs.tag }}
           REVISION: ${{ steps.release.outputs.revision }}
           DIGEST: ${{ steps.build.outputs.digest }}
+          REPOSITORY: ${{ github.repository }}
         shell: bash
         run: |
           mkdir -p .release-notes
@@ -114,7 +115,7 @@ jobs:
           previous_tag="$(git describe --tags --match 'v[0-9]*.[0-9]*.[0-9]*' --abbrev=0 "${TAG}^" 2>/dev/null || true)"
           if [[ -n "${previous_tag}" ]]; then
             range="${previous_tag}..HEAD"
-            compare_url="https://github.com/offerkit/offerkit/compare/${previous_tag}...${TAG}"
+            compare_url="https://github.com/${REPOSITORY}/compare/${previous_tag}...${TAG}"
           else
             range="HEAD"
             compare_url=""

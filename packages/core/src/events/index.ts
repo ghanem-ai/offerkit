@@ -6,7 +6,7 @@ import {
   randomBytes,
   timingSafeEqual,
 } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, lt } from "drizzle-orm";
 import { schema, type Db } from "@offerkit/db";
 import { logger } from "../observability/index.ts";
 import { enqueueJob } from "../jobs/index.ts";
@@ -19,6 +19,19 @@ export interface EmitInput {
   type: string;
   payload: Record<string, unknown>;
   entityId?: string;
+  /** Caller-controlled telemetry can opt out of broad `*` subscriptions. */
+  includeWildcardSubscriptions?: boolean;
+}
+
+export function webhookMatchesEvent(
+  events: string[],
+  type: string,
+  includeWildcardSubscriptions = true,
+): boolean {
+  return (
+    events.includes(type) ||
+    (includeWildcardSubscriptions && events.includes("*"))
+  );
 }
 
 /**
@@ -44,8 +57,12 @@ export async function emitEvent(
   const subs = await tx.query.webhook.findMany({
     where: (t, { and, eq, isNull }) => and(eq(t.active, true), isNull(t.deletedAt)),
   });
-  const matching = subs.filter(
-    (s) => s.events.includes("*") || s.events.includes(input.type),
+  const matching = subs.filter((subscription) =>
+    webhookMatchesEvent(
+      subscription.events,
+      input.type,
+      input.includeWildcardSubscriptions,
+    ),
   );
 
   for (const sub of matching) {
@@ -67,6 +84,60 @@ export async function emitEvent(
     "event emitted",
   );
   return { eventId: row.id, deliveriesEnqueued: matching.length };
+}
+
+/**
+ * Validation failures are emitted straight off a caller-driven read path,
+ * so their volume is bounded only by API traffic. Insights only ever reads
+ * the last 30 days, so anything older is dropped on a recurring sweep.
+ */
+export const PRUNABLE_EVENT_TYPES = ["voucher.validation_failed"] as const;
+
+export async function pruneEvents(
+  db: Db,
+  retentionDays = Number(process.env["EVENT_RETENTION_DAYS"] ?? 30),
+  options: { batchSize?: number; maxBatches?: number } = {},
+): Promise<{ deleted: number }> {
+  const days = Number.isFinite(retentionDays) && retentionDays > 0 ? retentionDays : 30;
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60_000);
+  const requestedBatchSize = options.batchSize ?? 1_000;
+  const requestedMaxBatches = options.maxBatches ?? 10;
+  const batchSize =
+    Number.isInteger(requestedBatchSize) && requestedBatchSize > 0
+      ? Math.min(requestedBatchSize, 10_000)
+      : 1_000;
+  const maxBatches =
+    Number.isInteger(requestedMaxBatches) && requestedMaxBatches > 0
+      ? Math.min(requestedMaxBatches, 100)
+      : 10;
+  let deleted = 0;
+
+  for (let batch = 0; batch < maxBatches; batch += 1) {
+    const candidates = await db
+      .select({ id: schema.event.id })
+      .from(schema.event)
+      .where(
+        and(
+          inArray(schema.event.type, [...PRUNABLE_EVENT_TYPES]),
+          lt(schema.event.createdAt, cutoff),
+        ),
+      )
+      .orderBy(schema.event.createdAt, schema.event.id)
+      .limit(batchSize);
+    if (candidates.length === 0) break;
+
+    const removed = await db
+      .delete(schema.event)
+      .where(inArray(schema.event.id, candidates.map((event) => event.id)))
+      .returning({ id: schema.event.id });
+    deleted += removed.length;
+    if (candidates.length < batchSize) break;
+  }
+
+  if (deleted > 0) {
+    log.info({ deleted, retentionDays: days, batchSize, maxBatches }, "pruned events");
+  }
+  return { deleted };
 }
 
 // ----- secret + signature helpers -----

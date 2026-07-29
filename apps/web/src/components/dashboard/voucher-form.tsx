@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { T, useGT } from "gt-next/client";
 import { FormFieldErrors } from "@/components/dashboard/form-field-errors";
@@ -17,8 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
-  voucherCreateFormSchema,
-  voucherEditFormSchema,
+  voucherFormSchema,
   type VoucherFormState,
 } from "@/lib/forms/voucher";
 
@@ -173,20 +172,23 @@ export function VoucherForm({
   onSubmit,
   pending,
   mode,
+  timeZone,
 }: {
   initial: VoucherFormState;
   submitLabel: string;
   onSubmit: (state: VoucherFormState) => void;
   pending: boolean;
   mode: "create" | "edit";
+  timeZone?: string;
 }) {
   const gt = useGT();
+  const schema = useMemo(() => voucherFormSchema(mode, timeZone), [mode, timeZone]);
   const form = useForm({
     defaultValues: initial,
     validators: {
-      onMount: mode === "create" ? voucherCreateFormSchema : voucherEditFormSchema,
-      onChange: mode === "create" ? voucherCreateFormSchema : voucherEditFormSchema,
-      onSubmit: mode === "create" ? voucherCreateFormSchema : voucherEditFormSchema,
+      onMount: schema,
+      onChange: schema,
+      onSubmit: schema,
     },
     onSubmit: ({ value }) => onSubmit(value),
   });
@@ -309,7 +311,7 @@ export function VoucherForm({
             {(field) => (
               <div className="space-y-2">
                 <Label htmlFor={field.name}>
-                  <T>Per-user limit</T>
+                  <T>Per-customer limit for this voucher</T>
                 </Label>
                 <Input
                   id={field.name}
@@ -333,7 +335,7 @@ export function VoucherForm({
             {(field) => (
               <div className="space-y-2">
                 <Label htmlFor={field.name}>
-                  <T>Customer ID</T>
+                  <T>OfferKit customer ID (advanced)</T>
                 </Label>
                 <Input
                   id={field.name}
@@ -342,6 +344,32 @@ export function VoucherForm({
                   aria-invalid={field.state.meta.errors.length > 0}
                   placeholder={gt("Optional")}
                 />
+                <p className="text-xs text-muted-foreground">
+                  <T>Use the external customer ID field for IDs from your application.</T>
+                </p>
+                <FormFieldErrors
+                  errors={field.state.meta.errors}
+                  visible={field.state.meta.isTouched}
+                />
+              </div>
+            )}
+          </form.Field>
+          <form.Field name="customerExternalId">
+            {(field) => (
+              <div className="space-y-2">
+                <Label htmlFor={field.name}>
+                  <T>External customer ID</T>
+                </Label>
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  aria-invalid={field.state.meta.errors.length > 0}
+                  placeholder={gt("Customer ID from your application")}
+                />
+                <p className="text-xs text-muted-foreground">
+                  <T>The customer is created or resolved automatically when the voucher is saved.</T>
+                </p>
                 <FormFieldErrors
                   errors={field.state.meta.errors}
                   visible={field.state.meta.isTouched}

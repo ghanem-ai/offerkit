@@ -5,7 +5,6 @@ import { schema } from "@offerkit/db";
 import { contract } from "@offerkit/contract/router";
 import { sendEmail } from "@offerkit/core/email";
 import type { RequestContext } from "@/server/context";
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requireSession } from "@/server/middleware/auth";
 
@@ -67,19 +66,25 @@ async function findUserOrThrow(id: string): Promise<StaffUserRow> {
   return row as StaffUserRow;
 }
 
-async function setUserPassword(userId: string, password: string): Promise<void> {
+type Executor = ReturnType<typeof db> | Parameters<Parameters<ReturnType<typeof db>["transaction"]>[0]>[0];
+
+async function setUserPassword(
+  userId: string,
+  password: string,
+  executor: Executor = db(),
+): Promise<void> {
   const hashed = await hashPassword(password);
-  const existing = await db().query.account.findFirst({
+  const existing = await executor.query.account.findFirst({
     where: and(eq(schema.account.userId, userId), eq(schema.account.providerId, "credential")),
   });
   if (existing) {
-    await db()
+    await executor
       .update(schema.account)
       .set({ password: hashed, updatedAt: new Date() })
       .where(eq(schema.account.id, existing.id));
     return;
   }
-  await db()
+  await executor
     .insert(schema.account)
     .values({
       id: crypto.randomUUID(),
@@ -102,14 +107,27 @@ const list = os.users.list.use(requireSession).handler(async ({ context }) => {
 const create = os.users.create.use(requireSession).handler(async ({ context, input }) => {
   requireAdmin(context.user.role);
   const password = generatePassword();
-  const result = await auth().api.signUpEmail({
-    body: { email: input.email, password, name: input.name ?? input.email },
+  const userId = crypto.randomUUID();
+  const inserted = await db().transaction(async (tx) => {
+    const [row] = await tx
+      .insert(schema.user)
+      .values({
+        id: userId,
+        email: input.email,
+        name: input.name ?? input.email,
+        role: input.role,
+        mustChangePassword: true,
+      })
+      .onConflictDoNothing({ target: schema.user.email })
+      .returning({ id: schema.user.id });
+    if (!row) return null;
+    await setUserPassword(userId, password, tx);
+    return row;
   });
-  await db()
-    .update(schema.user)
-    .set({ role: input.role, mustChangePassword: true })
-    .where(eq(schema.user.id, result.user.id));
-  const row = await findUserOrThrow(result.user.id);
+  if (!inserted) {
+    throw new ORPCError("CONFLICT", { message: "A user with this email already exists" });
+  }
+  const row = await findUserOrThrow(userId);
   await sendEmail({
     to: input.email,
     subject: "Your Offerkit account",

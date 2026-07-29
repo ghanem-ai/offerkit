@@ -4,11 +4,18 @@ import { createRedisJobQueue, createJobRegistry } from "./index.ts";
 class FakeQueue {
   static calls: Array<{ name: string; data: unknown; opts: Record<string, unknown> }> = [];
   static jobs = new Map<string, unknown>();
+  static constructedNames: string[] = [];
 
-  constructor(public name: string, public options: Record<string, unknown>) {}
+  constructor(public name: string, public options: Record<string, unknown>) {
+    FakeQueue.constructedNames.push(name);
+  }
 
   add(name: string, data: unknown, opts: Record<string, unknown>): Promise<{ id?: string | number }> {
     FakeQueue.calls.push({ name, data, opts });
+    // Mirrors BullMQ's Job.validateOptions, which throws on custom ids with ":".
+    if (typeof opts.jobId === "string" && opts.jobId.includes(":")) {
+      throw new Error("Custom Id cannot contain :");
+    }
     const id = typeof opts.jobId === "string" || typeof opts.jobId === "number" ? opts.jobId : "generated-id";
     if (typeof opts.jobId === "string" || typeof opts.jobId === "number") {
       FakeQueue.jobs.set(String(opts.jobId), { id: opts.jobId });
@@ -38,6 +45,18 @@ class FakeWorker {
 }
 
 describe("createRedisJobQueue", () => {
+  it("uses a BullMQ-safe default queue name", async () => {
+    FakeQueue.constructedNames = [];
+    const queue = createRedisJobQueue({
+      redisUrl: "redis://localhost:6379",
+      QueueCtor: FakeQueue,
+      WorkerCtor: FakeWorker,
+    });
+
+    expect(FakeQueue.constructedNames).toEqual(["offerkit-jobs"]);
+    await queue.close();
+  });
+
   it("enqueues jobs into BullMQ with delay and retry metadata", async () => {
     FakeQueue.calls = [];
     FakeQueue.jobs.clear();
@@ -68,10 +87,25 @@ describe("createRedisJobQueue", () => {
     });
   });
 
+  it("schedules jobs with a BullMQ-safe custom id", async () => {
+    FakeQueue.calls = [];
+    FakeQueue.jobs.clear();
+
+    const queue = createRedisJobQueue({
+      redisUrl: "redis://localhost:6379",
+      QueueCtor: FakeQueue,
+      WorkerCtor: FakeWorker,
+    });
+
+    await queue.ensureScheduled("events.prune", new Date("2026-01-01T00:00:00.000Z"));
+
+    expect(FakeQueue.calls[0]?.opts.jobId).toBe("scheduled-events.prune");
+  });
+
   it("dedupes scheduled jobs by type", async () => {
     FakeQueue.calls = [];
     FakeQueue.jobs.clear();
-    FakeQueue.jobs.set("scheduled:loyalty.points.expire", { id: "scheduled:loyalty.points.expire" });
+    FakeQueue.jobs.set("scheduled-loyalty.points.expire", { id: "scheduled-loyalty.points.expire" });
 
     const queue = createRedisJobQueue({
       redisUrl: "redis://localhost:6379",

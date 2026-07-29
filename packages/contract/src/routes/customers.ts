@@ -66,4 +66,29 @@ export const customers = {
     })
     .input(z.object({ params: z.object({ id: z.string().uuid() }) }))
     .output(z.object({ ok: z.literal(true) })),
+  redemptions: oc
+    .meta(mcpMeta({ expose: true, riskLevel: "safe" }))
+    .route({
+      method: "GET",
+      path: "/customers/{id}/redemptions",
+      summary: "List a customer's redemption history",
+      inputStructure: "detailed",
+    })
+    .input(
+      z.object({ params: z.object({ id: z.string().uuid() }), query: paginationInput }),
+    )
+    .output(
+      paginatedOutput(
+        z.object({
+          id: z.string().uuid(),
+          voucherCode: z.string(),
+          result: z.enum(["SUCCESS", "FAILURE", "ROLLBACK"]),
+          amount: z.number().int().nullable(),
+          currency: z.string().nullable(),
+          failureReason: z.string().nullable(),
+          externalOrderId: z.string().nullable(),
+          createdAt: z.string().datetime(),
+        }),
+      ),
+    ),
 };

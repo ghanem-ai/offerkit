@@ -154,14 +154,17 @@ export function CampaignForm({
             <form.Field name="status">
               {(field) => (
                 <div className="space-y-2">
-                  <Label>
+                  <Label htmlFor={field.name}>
                     <T>Status</T>
                   </Label>
                   <Select
                     value={field.state.value}
                     onValueChange={(v) => field.handleChange(v as CampaignStatus)}
                   >
-                    <SelectTrigger aria-invalid={field.state.meta.errors.length > 0}>
+                    <SelectTrigger
+                      id={field.name}
+                      aria-invalid={field.state.meta.errors.length > 0}
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -307,7 +310,7 @@ export function CampaignForm({
             {(field) => (
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor={field.name}>
-                  <T>Per-user redemption limit</T>
+                  <T>Per-customer limit across this campaign</T>
                 </Label>
                 <Input
                   id={field.name}
@@ -320,6 +323,12 @@ export function CampaignForm({
                   aria-invalid={field.state.meta.errors.length > 0}
                   placeholder={gt("No campaign-level user cap")}
                 />
+                <p className="text-xs text-muted-foreground">
+                  <T>
+                    Counts redemptions across every voucher in this campaign. Leave blank when each
+                    voucher should enforce its own customer limit.
+                  </T>
+                </p>
                 <FormFieldErrors
                   errors={field.state.meta.errors}
                   visible={field.state.meta.isTouched}
