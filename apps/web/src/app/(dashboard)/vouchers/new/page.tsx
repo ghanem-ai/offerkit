@@ -22,8 +22,16 @@ export default function NewVoucherPage() {
   });
 
   const create = useMutation({
-    mutationFn: (state: VoucherFormState) =>
-      ovx().vouchers.create(voucherFormToCreateInput(state)),
+    mutationFn: async (state: VoucherFormState) => {
+      const input = voucherFormToCreateInput(state, campaign?.timezone);
+      if (state.customerExternalId) {
+        const resolved = await ovx().customers.upsert({
+          externalId: state.customerExternalId,
+        });
+        input.customerId = resolved.customer.id;
+      }
+      return ovx().vouchers.create(input);
+    },
     onSuccess: async (voucher) => {
       await queryClient.invalidateQueries({ queryKey: ["vouchers"] });
       toast.success(gt("Voucher created"));
@@ -58,6 +66,7 @@ export default function NewVoucherPage() {
           redemptionLimit: "",
           perUserRedemptionLimit: "",
           customerId: "",
+          customerExternalId: "",
           priority: 0,
           exclusive: false,
           active: true,

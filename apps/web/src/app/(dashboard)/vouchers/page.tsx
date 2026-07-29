@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type ApiListItem, type OfferKitClient, ovx } from "@/lib/sdk";
+import { voucherStatus } from "@/lib/voucher-status";
 
 type VoucherRow = ApiListItem<OfferKitClient["vouchers"]["list"]>;
 
@@ -60,15 +61,26 @@ export default function VouchersPage() {
       ),
     },
     {
-      accessorKey: "active",
-      header: () => <div className="text-right"><T>Active</T></div>,
-      cell: ({ row }) => (
-        <div className="text-right">
-          <Badge variant={row.original.active ? "default" : "secondary"}>
-            {row.original.active ? gt("yes") : gt("no")}
-          </Badge>
-        </div>
-      ),
+      id: "status",
+      header: () => <div className="text-right"><T>Status</T></div>,
+      cell: ({ row }) => {
+        const status = voucherStatus(row.original);
+        return (
+          <div className="text-right">
+            <Badge
+              variant={
+                status === "active"
+                  ? "default"
+                  : status === "expired"
+                    ? "destructive"
+                    : "secondary"
+              }
+            >
+              {gt(status)}
+            </Badge>
+          </div>
+        );
+      },
     },
   ];
 

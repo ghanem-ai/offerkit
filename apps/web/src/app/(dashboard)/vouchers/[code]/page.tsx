@@ -18,16 +18,13 @@ import {
   type VoucherFormState,
 } from "@/components/dashboard/voucher-form";
 import { voucherFormToUpdateInput } from "@/lib/forms/voucher";
+import { fromIsoToLocalDateTime } from "@/lib/forms/shared";
 import { formatMinorCurrency } from "@/lib/money";
 import { ovx } from "@/lib/sdk";
+import { voucherStatus } from "@/lib/voucher-status";
 
 interface PageProps {
   params: Promise<{ code: string }>;
-}
-
-function fromIso(iso: string | null | undefined): string {
-  if (!iso) return "";
-  return new Date(iso).toISOString().slice(0, 16);
 }
 
 export default function VoucherDetailPage({ params }: PageProps) {
@@ -49,14 +46,26 @@ export default function VoucherDetailPage({ params }: PageProps) {
     enabled: Boolean(data?.campaignId),
   });
 
+  const { data: customer } = useQuery({
+    queryKey: ["customers", data?.customerId],
+    queryFn: () => ovx().customers.get({ params: { id: data?.customerId ?? "" } }),
+    enabled: Boolean(data?.customerId),
+  });
+
   const update = useMutation({
-    mutationFn: (state: VoucherFormState) =>
-      ovx().vouchers.update({
+    mutationFn: async (state: VoucherFormState) => {
+      const patch = voucherFormToUpdateInput(state, campaign?.timezone);
+      if (state.customerExternalId) {
+        const resolved = await ovx().customers.upsert({
+          externalId: state.customerExternalId,
+        });
+        patch.customerId = resolved.customer.id;
+      }
+      return ovx().vouchers.update({
         params: { code },
-        body: {
-          patch: voucherFormToUpdateInput(state),
-        },
-      }),
+        body: { patch },
+      });
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["vouchers"] });
       toast.success(gt("Voucher updated"));
@@ -129,16 +138,18 @@ export default function VoucherDetailPage({ params }: PageProps) {
     giftBalance: data.giftBalance ?? "",
     redemptionLimit: data.redemptionLimit ?? "",
     perUserRedemptionLimit: data.perUserRedemptionLimit ?? "",
-    customerId: data.customerId ?? "",
+    customerId: customer?.externalId ? "" : (data.customerId ?? ""),
+    customerExternalId: customer?.externalId ?? "",
     priority: data.priority,
     exclusive: data.exclusive,
     active: data.active,
-    startDate: fromIso(data.startDate),
-    endDate: fromIso(data.endDate),
+    startDate: fromIsoToLocalDateTime(data.startDate, campaign?.timezone),
+    endDate: fromIsoToLocalDateTime(data.endDate, campaign?.timezone),
   };
 
   const isGift = data.type === "GIFT_CARD";
   const campaignCurrency = campaign?.currency;
+  const status = voucherStatus(data);
 
   return (
     <div className="space-y-4">
@@ -157,8 +168,16 @@ export default function VoucherDetailPage({ params }: PageProps) {
               <T>Updated {new Date(data.updatedAt).toLocaleString()}</T>
             </p>
           </div>
-          <Badge variant={data.active ? "default" : "secondary"}>
-            {data.active ? gt("active") : gt("inactive")}
+          <Badge
+            variant={
+              status === "active"
+                ? "default"
+                : status === "expired"
+                  ? "destructive"
+                  : "secondary"
+            }
+          >
+            {gt(status)}
           </Badge>
         </div>
         <ConfirmDialog
@@ -180,7 +199,7 @@ export default function VoucherDetailPage({ params }: PageProps) {
       </header>
 
       <VoucherForm
-        key={data.updatedAt}
+        key={`${data.updatedAt}:${customer?.updatedAt ?? ""}`}
         mode="edit"
         initial={initial}
         submitLabel={gt("Save changes")}

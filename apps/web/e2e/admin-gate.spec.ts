@@ -9,9 +9,7 @@ test.describe("admin route gate", () => {
     // Admin-only nav entries are hidden for member-role users; for an
     // admin they must be visible.
     await expect(page.getByRole("link", { name: /^users$/i })).toBeVisible();
-    await expect(
-      page.getByRole("link", { name: /audit log/i }),
-    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "Audit log", exact: true })).toBeVisible();
 
     await page.goto("/settings/users");
     await expect(page.getByRole("heading", { level: 1 })).toContainText(

@@ -4,6 +4,7 @@ import { schema } from "@offerkit/db";
 import type { VoucherDiscount } from "@offerkit/db/schema";
 import { contract } from "@offerkit/contract/router";
 import { generateUniqueCodes, BULK_INLINE_THRESHOLD } from "@offerkit/core/codes";
+import { emitEvent } from "@offerkit/core/events";
 import { enqueueJob } from "@offerkit/core/jobs";
 import { qualify, redeem, stackRedeem, validate } from "@offerkit/core/redemption";
 import type { RequestContext } from "@/server/context";
@@ -410,6 +411,27 @@ const validateProc = os.vouchers.validate
       customerExternalId: input.body?.customerExternalId,
       order: input.body?.order,
     });
+    if (!result.valid) {
+      const voucher = await db().query.voucher.findFirst({
+        where: and(
+          eq(schema.voucher.code, input.params.code),
+          isNull(schema.voucher.deletedAt),
+        ),
+        columns: { id: true },
+      });
+      await emitEvent(db(), {
+        type: "voucher.validation_failed",
+        ...(voucher ? { entityId: voucher.id } : {}),
+        payload: {
+          voucherId: voucher?.id ?? null,
+          voucherCode: input.params.code,
+          reason: result.code ?? "unknown",
+          message: result.message ?? null,
+          customerId: input.body?.customerId ?? null,
+          customerExternalId: input.body?.customerExternalId ?? null,
+        },
+      });
+    }
     return {
       valid: result.valid,
       code: result.code,

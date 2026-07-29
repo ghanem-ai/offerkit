@@ -21,17 +21,13 @@ import {
 } from "@/components/dashboard/campaign-form";
 import { type ApiListItem, type OfferKitClient, ovx } from "@/lib/sdk";
 import { campaignFormToUpdateInput } from "@/lib/forms/campaign";
+import { fromIsoToLocalDateTime } from "@/lib/forms/shared";
+import { voucherStatus } from "@/lib/voucher-status";
 
 type VoucherRow = ApiListItem<OfferKitClient["vouchers"]["list"]>;
 
 interface PageProps {
   params: Promise<{ id: string }>;
-}
-
-function fromIso(iso: string | null | undefined): string {
-  if (!iso) return "";
-  // datetime-local needs `YYYY-MM-DDTHH:mm` without seconds/timezone.
-  return new Date(iso).toISOString().slice(0, 16);
 }
 
 export default function CampaignDetailPage({ params }: PageProps) {
@@ -148,15 +144,26 @@ export default function CampaignDetailPage({ params }: PageProps) {
       ),
     },
     {
-      accessorKey: "active",
-      header: () => <div className="text-right"><T>Active</T></div>,
-      cell: ({ row }) => (
-        <div className="text-right">
-          <Badge variant={row.original.active ? "default" : "secondary"}>
-            {row.original.active ? gt("yes") : gt("no")}
-          </Badge>
-        </div>
-      ),
+      id: "status",
+      header: () => <div className="text-right"><T>Status</T></div>,
+      cell: ({ row }) => {
+        const status = voucherStatus(row.original);
+        return (
+          <div className="text-right">
+            <Badge
+              variant={
+                status === "active"
+                  ? "default"
+                  : status === "expired"
+                    ? "destructive"
+                    : "secondary"
+              }
+            >
+              {gt(status)}
+            </Badge>
+          </div>
+        );
+      },
     },
   ];
 
@@ -209,8 +216,8 @@ export default function CampaignDetailPage({ params }: PageProps) {
           status: data.status,
           currency: data.currency,
           timezone: data.timezone,
-          startDate: fromIso(data.startDate),
-          endDate: fromIso(data.endDate),
+          startDate: fromIsoToLocalDateTime(data.startDate, data.timezone),
+          endDate: fromIsoToLocalDateTime(data.endDate, data.timezone),
           perUserRedemptionLimit: data.perUserRedemptionLimit ?? "",
           autoApply: data.autoApply,
           codeLength: cfg.length ?? 8,

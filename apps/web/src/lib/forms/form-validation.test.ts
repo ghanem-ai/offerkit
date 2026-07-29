@@ -12,6 +12,7 @@ import {
   voucherFormToUpdateInput,
   type VoucherFormState,
 } from "./voucher";
+import { fromIsoToLocalDateTime, toIsoOrUndefined } from "./shared";
 
 const campaign: CampaignFormState = {
   name: "Summer sale",
@@ -39,6 +40,7 @@ const voucher: VoucherFormState = {
   redemptionLimit: 100,
   perUserRedemptionLimit: 1,
   customerId: "22222222-2222-4222-8222-222222222222",
+  customerExternalId: "",
   priority: 3,
   exclusive: true,
   active: true,
@@ -93,8 +95,8 @@ describe("campaign form validation", () => {
       perUserRedemptionLimit: 2,
       codeConfig: { length: 8, prefix: "SUMMER-" },
     });
-    expect(create.startDate).toBe(new Date(campaign.startDate).toISOString());
-    expect(create.endDate).toBe(new Date(campaign.endDate).toISOString());
+    expect(create.startDate).toBe("2026-07-10T10:00:00.000Z");
+    expect(create.endDate).toBe("2026-07-11T10:00:00.000Z");
 
     const update = campaignFormToUpdateInput({
       ...campaign,
@@ -142,6 +144,15 @@ describe("voucher form validation", () => {
         "endDate",
       ]),
     );
+  });
+
+  it("rejects simultaneous internal and external customer identifiers", () => {
+    const result = voucherCreateFormSchema.safeParse({
+      ...voucher,
+      customerExternalId: "ghanem-user-123",
+    });
+
+    expect(issuePaths(result)).toContain("customerExternalId");
   });
 
   it("requires a positive balance only when creating a gift card", () => {
@@ -199,5 +210,26 @@ describe("voucher form validation", () => {
     expect(input).not.toHaveProperty("code");
     expect(input).not.toHaveProperty("campaignId");
     expect(input).not.toHaveProperty("type");
+  });
+});
+
+describe("timezone-aware date conversion", () => {
+  it("converts Riyadh local time to UTC and back without shifting the form value", () => {
+    const iso = toIsoOrUndefined("2026-07-29T10:30", "Asia/Riyadh");
+
+    expect(iso).toBe("2026-07-29T07:30:00.000Z");
+    expect(fromIsoToLocalDateTime(iso, "Asia/Riyadh")).toBe("2026-07-29T10:30");
+  });
+
+  it("uses the campaign timezone in campaign payloads", () => {
+    const input = campaignFormToCreateInput({
+      ...campaign,
+      timezone: "Asia/Riyadh",
+      startDate: "2026-07-29T10:30",
+      endDate: "2026-07-29T11:30",
+    });
+
+    expect(input.startDate).toBe("2026-07-29T07:30:00.000Z");
+    expect(input.endDate).toBe("2026-07-29T08:30:00.000Z");
   });
 });

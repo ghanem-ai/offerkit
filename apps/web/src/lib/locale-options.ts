@@ -26,6 +26,7 @@ export const TIMEZONE_OPTIONS: LocaleOption[] = [
   { value: "Europe/Amsterdam", label: "Europe/Amsterdam" },
   { value: "Europe/Berlin", label: "Europe/Berlin" },
   { value: "Asia/Dubai", label: "Asia/Dubai" },
+  { value: "Asia/Riyadh", label: "Asia/Riyadh" },
   { value: "Asia/Kolkata", label: "Asia/Kolkata" },
   { value: "Asia/Singapore", label: "Asia/Singapore" },
   { value: "Asia/Tokyo", label: "Asia/Tokyo" },

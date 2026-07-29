@@ -1,5 +1,5 @@
 import { ORPCError, implement } from "@orpc/server";
-import { and, eq, ilike, isNull, or } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, or } from "drizzle-orm";
 import { schema } from "@offerkit/db";
 import { contract } from "@offerkit/contract/router";
 import { emitEvent } from "@offerkit/core/events";
@@ -183,6 +183,35 @@ const remove = os.customers.delete
     return { ok: true as const };
   });
 
+const redemptions = os.customers.redemptions
+  .use(requireSession)
+  .handler(async ({ input }) => {
+    const rows = await db()
+      .select({
+        id: schema.redemption.id,
+        voucherCode: schema.voucher.code,
+        result: schema.redemption.result,
+        amount: schema.redemption.amount,
+        currency: schema.campaign.currency,
+        failureReason: schema.redemption.failureReason,
+        externalOrderId: schema.redemption.externalOrderId,
+        createdAt: schema.redemption.createdAt,
+      })
+      .from(schema.redemption)
+      .innerJoin(schema.voucher, eq(schema.redemption.voucherId, schema.voucher.id))
+      .leftJoin(schema.campaign, eq(schema.voucher.campaignId, schema.campaign.id))
+      .where(eq(schema.redemption.customerId, input.params.id))
+      .orderBy(desc(schema.redemption.createdAt), desc(schema.redemption.id))
+      .limit(100);
+
+    return {
+      data: rows.map((row) => ({
+        ...row,
+        createdAt: row.createdAt.toISOString(),
+      })),
+    };
+  });
+
 export const customersRouter = {
   list,
   get,
@@ -191,4 +220,5 @@ export const customersRouter = {
   upsert,
   update,
   delete: remove,
+  redemptions,
 };

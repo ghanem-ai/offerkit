@@ -96,7 +96,7 @@ export default function InsightsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>
-                  <T>Validation failure breakdown</T>
+                  <T>Validation and redemption failures</T>
                 </CardTitle>
               </CardHeader>
               <CardContent>

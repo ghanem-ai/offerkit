@@ -17,7 +17,12 @@ export default function NewCustomerPage() {
   const gt = useGT();
 
   const create = useMutation({
-    mutationFn: (input: { email?: string; name?: string; phone?: string }) =>
+    mutationFn: (input: {
+      email?: string;
+      name?: string;
+      phone?: string;
+      externalId?: string;
+    }) =>
       ovx().customers.create(input),
     onSuccess: async (customer) => {
       await queryClient.invalidateQueries({ queryKey: ["customers"] });
@@ -31,12 +36,13 @@ export default function NewCustomerPage() {
   });
 
   const form = useForm({
-    defaultValues: { email: "", name: "", phone: "" },
+    defaultValues: { email: "", name: "", phone: "", externalId: "" },
     onSubmit: ({ value }) => {
       create.mutate({
         email: value.email || undefined,
         name: value.name || undefined,
         phone: value.phone || undefined,
+        externalId: value.externalId || undefined,
       });
     },
   });
@@ -112,6 +118,24 @@ export default function NewCustomerPage() {
                     onChange={(e) => field.handleChange(e.target.value)}
                     placeholder="+1 555 123 4567"
                   />
+                </div>
+              )}
+            </form.Field>
+            <form.Field name="externalId">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor={field.name}>
+                    <T>External customer ID</T>
+                  </Label>
+                  <Input
+                    id={field.name}
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    placeholder={gt("Customer ID from your application")}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    <T>Use the same ID your integration sends during validation and redemption.</T>
+                  </p>
                 </div>
               )}
             </form.Field>
