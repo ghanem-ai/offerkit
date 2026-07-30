@@ -39,7 +39,7 @@ export default function NewVoucherPage() {
     },
     onSuccess: async (voucher) => {
       await queryClient.invalidateQueries({ queryKey: ["vouchers"] });
-      toast.success(gt("Voucher created"));
+      toast.success(gt("Promotion code created"));
       router.push(`/vouchers/${voucher.code}`);
     },
     onError: (err: unknown) => {
@@ -66,13 +66,14 @@ export default function NewVoucherPage() {
     <div className="space-y-4">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">
-          <T>New voucher</T>
+          <T>New promotion code</T>
         </h1>
         <p className="text-sm text-muted-foreground">
-          <T>Configure a single voucher. Use bulk generate on the campaign for batches.</T>
+          <T>Add one fixed-SAR code to this promotion.</T>
         </p>
       </header>
       <VoucherForm
+        ghanemOperatorMode
         timeZone={timeZone}
         key={`${campaignId}:${campaign?.type ?? "default"}`}
         mode="create"
@@ -94,7 +95,7 @@ export default function NewVoucherPage() {
           startDate: "",
           endDate: "",
         }}
-        submitLabel={gt("Create voucher")}
+        submitLabel={gt("Create promotion code")}
         pending={create.isPending}
         onSubmit={(state) => create.mutate(state)}
       />

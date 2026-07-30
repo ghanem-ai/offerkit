@@ -1,6 +1,7 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 import { mcpMeta } from "../mcp.ts";
+import { campaignType } from "../schemas/campaign.ts";
 import { paginatedOutput, paginationInput } from "../schemas/pagination.ts";
 import {
   voucherBulkCreateInput,
@@ -27,6 +28,7 @@ export const vouchers = {
       paginationInput.extend({
         search: z.string().optional(),
         campaignId: z.string().uuid().optional(),
+        campaignType: campaignType.optional(),
         active: z.boolean().optional(),
         customerId: z.string().uuid().optional(),
       }),

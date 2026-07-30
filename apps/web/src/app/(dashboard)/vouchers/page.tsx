@@ -15,12 +15,27 @@ import { voucherStatus } from "@/lib/voucher-status";
 
 type VoucherRow = ApiListItem<OfferKitClient["vouchers"]["list"]>;
 
+const sarFormatter = new Intl.NumberFormat("en-SA", {
+  style: "currency",
+  currency: "SAR",
+  minimumFractionDigits: 2,
+});
+
+function formatSar(amountMinor: number): string {
+  return sarFormatter.format(amountMinor / 100);
+}
+
 export default function VouchersPage() {
   const gt = useGT();
   const [search, setSearch] = useState("");
   const { data, isLoading } = useQuery({
     queryKey: ["vouchers", { search }],
-    queryFn: () => ovx().vouchers.list({ search: search || undefined, limit: 25 }),
+    queryFn: () =>
+      ovx().vouchers.list({
+        search: search || undefined,
+        campaignType: "DISCOUNT",
+        limit: 25,
+      }),
   });
   const columns: ColumnDef<VoucherRow>[] = [
     {
@@ -33,17 +48,12 @@ export default function VouchersPage() {
       ),
     },
     {
-      accessorKey: "type",
-      header: () => <T>Type</T>,
-      cell: ({ row }) => <span className="text-muted-foreground">{row.original.type}</span>,
-    },
-    {
       id: "discount",
-      header: () => <T>Discount</T>,
+      header: () => <T>Reward</T>,
       cell: ({ row }) => (
         <span className="text-muted-foreground">
           {row.original.discount?.type === "AMOUNT"
-            ? String((row.original.discount.amount ?? 0) / 100)
+            ? formatSar(row.original.discount.amount ?? 0)
             : row.original.discount?.type === "PERCENTAGE"
               ? `${String((row.original.discount.percent ?? 0) / 100)}%`
               : "-"}
@@ -79,15 +89,15 @@ export default function VouchersPage() {
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            <T>Vouchers</T>
+            <T>Promotion codes</T>
           </h1>
           <p className="text-sm text-muted-foreground">
-            <T>Flat list across campaigns. Search by code.</T>
+            <T>Redeemable fixed-SAR codes. Search by code.</T>
           </p>
         </div>
-        <Button render={<Link href="/vouchers/new" />}>
+        <Button render={<Link href="/campaigns/new" />}>
           <Plus className="size-4" />
-          <T>New voucher</T>
+          <T>New promotion</T>
         </Button>
       </header>
 
@@ -105,7 +115,7 @@ export default function VouchersPage() {
         columns={columns}
         data={data?.data ?? []}
         isLoading={isLoading}
-        emptyMessage={<T>No vouchers yet.</T>}
+        emptyMessage={<T>No promotion codes yet.</T>}
       />
     </div>
   );

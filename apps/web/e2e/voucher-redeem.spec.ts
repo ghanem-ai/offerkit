@@ -1,80 +1,70 @@
 import { expect, test } from "@playwright/test";
 import { uniqueSuffix } from "./_helpers";
 
-test.describe("voucher redeem from dashboard", () => {
-  test("create campaign + voucher → run test redemption → success toast appears", async ({
-    page,
-  }) => {
-    // Create a campaign through the UI so we have a known starting point.
-    const campaignName = `e2e-redeem-${uniqueSuffix()}`;
+test.describe("promotion flow from dashboard", () => {
+  test("create active SAR promotion + code → validate → redeem", async ({ page }) => {
+    const suffix = uniqueSuffix();
+    const promotionName = `e2e-promotion-${suffix}`;
+    const promotionCode = `GH-E2E-${suffix}`.toUpperCase();
+
     await page.goto("/campaigns/new");
     await page.waitForLoadState("networkidle");
-    await page.getByLabel("Name", { exact: true }).fill(campaignName);
-    const submit = page.getByRole("button", { name: /create campaign/i });
-    await expect(submit).toBeEnabled();
-    await Promise.all([
+    await expect(page.getByLabel("Type", { exact: true })).toHaveCount(0);
+    await page.getByLabel("Name", { exact: true }).fill(promotionName);
+    await page.getByLabel("Code", { exact: true }).fill(promotionCode);
+    await page.getByLabel(/reward amount \(sar\)/i).fill("25.00");
+    await page.getByLabel(/total redemptions/i).fill("2");
+    await page.getByLabel(/redemptions per customer/i).fill("1");
+
+    const create = page.getByRole("button", { name: /create promotion/i });
+    await expect(create).toBeEnabled();
+    const [creationResponse] = await Promise.all([
       page.waitForResponse(
-        (r) =>
-          r.url().includes("/api/v1/campaigns") &&
-          r.request().method() === "POST",
+        (response) =>
+          response.url().includes("/api/v1/promotions") &&
+          response.request().method() === "POST",
         { timeout: 15_000 },
       ),
-      submit.click(),
+      create.click(),
     ]);
-    await page.waitForURL(/\/campaigns\/[0-9a-f-]{36}/, { timeout: 15_000 });
+    expect(creationResponse.ok()).toBe(true);
+    await page.waitForURL(/\/vouchers\/[^?]+\?campaignId=[0-9a-f-]{36}/, {
+      timeout: 15_000,
+    });
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(promotionCode);
+    await expect(page.getByText("active", { exact: true })).toBeVisible();
 
-    // New campaigns intentionally start as drafts. Activate this one through
-    // the same dashboard flow an operator uses before testing redemption.
-    await page.getByLabel("Status", { exact: true }).click();
-    await page.getByRole("option", { name: "active", exact: true }).click();
-    await Promise.all([
+    const customerId = `dashboard-e2e-${suffix}`;
+    await page.getByLabel(/order amount \(sar\)/i).fill("25.00");
+    await page.getByLabel(/customer external id/i).fill(customerId);
+    await page.getByLabel(/idempotency key/i).fill(`dashboard-${suffix}`);
+
+    const [validationResponse] = await Promise.all([
       page.waitForResponse(
-        (r) =>
-          /\/api\/v1\/campaigns\/[0-9a-f-]{36}$/.test(r.url()) &&
-          r.request().method() === "PATCH",
+        (response) =>
+          /\/api\/v1\/vouchers\/[^/]+\/validate$/.test(response.url()) &&
+          response.request().method() === "POST",
         { timeout: 15_000 },
       ),
-      page.getByRole("button", { name: /save changes/i }).click(),
+      page.getByRole("button", { name: /^validate$/i }).click(),
     ]);
+    expect(validationResponse.ok()).toBe(true);
+    await expect(page.getByText(/"amount": 2500/)).toBeVisible();
 
-    // Bulk-mint 1 voucher from the campaign detail page; click into the
-    // voucher's detail row to land on /vouchers/[code].
-    await page.getByLabel(/bulk generate/i).fill("1");
-    await Promise.all([
+    const [redemptionResponse] = await Promise.all([
       page.waitForResponse(
-        (r) =>
-          r.url().includes("/api/v1/vouchers/bulk") &&
-          r.request().method() === "POST",
-        { timeout: 15_000 },
-      ),
-      page.getByRole("button", { name: /generate codes/i }).click(),
-    ]);
-
-    // The voucher table now has one row. Click its code link to land on
-    // /vouchers/[code]. Filter to the link that points at /vouchers/{code}.
-    const voucherLink = page.locator(
-      "a[href^='/vouchers/']:not([href='/vouchers']):not([href*='/vouchers/new'])",
-    );
-    await voucherLink.first().click();
-    await page.waitForURL(/\/vouchers\/[A-Za-z0-9]+$/, { timeout: 15_000 });
-
-    // Run the test redemption form. Bulk-minted vouchers carry no
-    // discount jsonb, but the redeem call still returns ok=true (the
-    // discount math just yields 0).
-    await page.getByLabel(/order amount/i).fill("5000");
-    await Promise.all([
-      page.waitForResponse(
-        (r) =>
-          /\/api\/v1\/vouchers\/[^/]+\/redemption$/.test(r.url()) &&
-          r.request().method() === "POST",
+        (response) =>
+          /\/api\/v1\/vouchers\/[^/]+\/redemption$/.test(response.url()) &&
+          response.request().method() === "POST",
         { timeout: 15_000 },
       ),
       page.getByRole("button", { name: /^redeem$/i }).click(),
     ]);
-    await expect(
-      page.getByText(/redemption succeeded/i).first(),
-    ).toBeVisible({
+    expect(redemptionResponse.ok()).toBe(true);
+    await expect(page.getByText(/redemption succeeded/i).first()).toBeVisible({
       timeout: 15_000,
     });
+    await expect(page.getByText(/"ok": true/)).toBeVisible();
+    await expect(page.getByText(/"amount": 2500/).last()).toBeVisible();
   });
 });

@@ -27,6 +27,84 @@ afterAll(async () => {
 });
 
 describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
+  it("creates an immediately redeemable fixed-SAR promotion and code atomically", async () => {
+    if (!token) throw new Error("setup failed");
+    const client = makeClient(token);
+    const name = randomId("ghanem-promotion");
+    const code = randomId("GHANEM").toUpperCase();
+
+    const created = await client.campaigns.createPromotion({
+      name,
+      code,
+      amount: 2_500,
+      status: "active",
+      timezone: "Asia/Riyadh",
+      redemptionLimit: 10,
+      perUserRedemptionLimit: 1,
+    });
+
+    expect(created.campaign).toMatchObject({
+      name,
+      type: "DISCOUNT",
+      status: "active",
+      currency: "SAR",
+      timezone: "Asia/Riyadh",
+      voucherCount: 1,
+    });
+    expect(created.voucher).toMatchObject({
+      code,
+      campaignId: created.campaign.id,
+      type: "DISCOUNT",
+      discount: { type: "AMOUNT", amount: 2_500 },
+      redemptionLimit: 10,
+      perUserRedemptionLimit: 1,
+      metadata: { type: "promo" },
+    });
+
+    const visibleCodes = await client.vouchers.list({
+      search: code,
+      campaignType: "DISCOUNT",
+      limit: 5,
+    });
+    expect(visibleCodes.data.map((voucher) => voucher.id)).toContain(created.voucher.id);
+
+    const validation = await client.vouchers.validate({
+      params: { code },
+      body: {
+        customerExternalId: randomId("customer"),
+        order: { amount: 2_500, currency: "SAR" },
+      },
+    });
+    expect(validation).toMatchObject({
+      valid: true,
+      preview: { amount: 2_500 },
+    });
+
+    const redemption = await client.vouchers.redeem({
+      params: { code },
+      body: {
+        customerExternalId: randomId("customer"),
+        order: { amount: 2_500, currency: "SAR" },
+        idempotencyKey: randomId("promotion-redemption"),
+      },
+    });
+    expect(redemption).toMatchObject({ ok: true, amount: 2_500 });
+
+    await expect(
+      client.campaigns.createPromotion({
+        name: `${name}-duplicate`,
+        code,
+        amount: 2_500,
+      }),
+    ).rejects.toThrow(/already exists/i);
+    const duplicateCampaign = await client.campaigns.list({
+      search: `${name}-duplicate`,
+      type: "DISCOUNT",
+      limit: 5,
+    });
+    expect(duplicateCampaign.data).toHaveLength(0);
+  });
+
   it("create → update → list (search) → soft-delete excludes from list", async () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
@@ -58,6 +136,32 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
     await expect(client.campaigns.get({ params: { id: created.id } })).rejects.toThrow(
       /not found/i,
     );
+  });
+
+  it("filters campaigns by the requested type", async () => {
+    if (!token) throw new Error("setup failed");
+    const client = makeClient(token);
+    const name = randomId("typed-camp");
+
+    const discount = await client.campaigns.create({
+      name: `${name}-discount`,
+      type: "DISCOUNT",
+      currency: "SAR",
+    });
+    const referral = await client.campaigns.create({
+      name: `${name}-referral`,
+      type: "REFERRAL_PROGRAM",
+      currency: "SAR",
+    });
+
+    const result = await client.campaigns.list({
+      search: name,
+      type: "DISCOUNT",
+      limit: 10,
+    });
+
+    expect(result.data.map((campaign) => campaign.id)).toContain(discount.id);
+    expect(result.data.map((campaign) => campaign.id)).not.toContain(referral.id);
   });
 
   it("updates optional campaign fields used by qualification and code generation", async () => {

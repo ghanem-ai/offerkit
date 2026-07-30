@@ -37,7 +37,7 @@ export default function CampaignDetailPage({ params }: PageProps) {
   const queryClient = useQueryClient();
   const gt = useGT();
   const [bulkCount, setBulkCount] = useState(10);
-  const [bulkDiscountAmount, setBulkDiscountAmount] = useState(1000);
+  const [bulkDiscountAmountSar, setBulkDiscountAmountSar] = useState(10);
   const [bulkGiftBalance, setBulkGiftBalance] = useState(10000);
 
   const { data, isLoading } = useQuery({
@@ -61,7 +61,7 @@ export default function CampaignDetailPage({ params }: PageProps) {
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["campaigns"] });
-      toast.success(gt("Campaign updated"));
+      toast.success(gt("Promotion updated"));
     },
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : gt("Update failed"));
@@ -72,7 +72,7 @@ export default function CampaignDetailPage({ params }: PageProps) {
     mutationFn: () => ovx().campaigns.delete({ params: { id } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["campaigns"] });
-      toast.success(gt("Campaign deleted"));
+      toast.success(gt("Promotion deleted"));
       router.push("/campaigns");
     },
     onError: (err: unknown) => {
@@ -109,7 +109,7 @@ export default function CampaignDetailPage({ params }: PageProps) {
   if (!data)
     return (
       <p className="text-sm text-muted-foreground">
-        <T>Campaign not found.</T>
+        <T>Promotion not found.</T>
       </p>
     );
 
@@ -118,7 +118,7 @@ export default function CampaignDetailPage({ params }: PageProps) {
   const isGiftVoucherCampaign = data.type === "GIFT_VOUCHERS";
   const bulkValueInvalid = isGiftVoucherCampaign
     ? bulkGiftBalance < 1
-    : bulkDiscountAmount < 1;
+    : bulkDiscountAmountSar < 0.01;
   const voucherColumns: ColumnDef<VoucherRow>[] = [
     {
       accessorKey: "code",
@@ -128,11 +128,6 @@ export default function CampaignDetailPage({ params }: PageProps) {
           {row.original.code}
         </Link>
       ),
-    },
-    {
-      accessorKey: "type",
-      header: () => <T>Type</T>,
-      cell: ({ row }) => <span className="text-muted-foreground">{row.original.type}</span>,
     },
     {
       accessorKey: "redemptionCount",
@@ -165,7 +160,7 @@ export default function CampaignDetailPage({ params }: PageProps) {
           <Button
             variant="ghost"
             size="icon"
-            render={<Link href="/campaigns" aria-label={gt("Back to campaigns")} />}
+            render={<Link href="/campaigns" aria-label={gt("Back to promotions")} />}
           >
             <ArrowLeft className="size-4" />
           </Button>
@@ -186,11 +181,11 @@ export default function CampaignDetailPage({ params }: PageProps) {
               <T>Delete</T>
             </Button>
           }
-          title={gt("Delete this campaign?")}
+          title={gt("Delete this promotion?")}
           description={gt(
-            "The campaign and its vouchers will be soft-deleted. Existing redemptions stay intact.",
+            "The promotion and its codes will be hidden. Existing redemptions stay intact.",
           )}
-          confirmLabel={gt("Delete campaign")}
+          confirmLabel={gt("Delete promotion")}
           destructive
           pending={remove.isPending}
           onConfirm={() => remove.mutate()}
@@ -223,14 +218,14 @@ export default function CampaignDetailPage({ params }: PageProps) {
         <Card>
           <CardHeader>
             <CardTitle>
-              <T>Vouchers</T>
+              <T>Promotion codes</T>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap items-end gap-2">
               <div className="space-y-2">
                 <Label htmlFor="bulk-count">
-                  <T>Bulk generate</T>
+                  <T>Number of codes</T>
                 </Label>
                 <Input
                   id="bulk-count"
@@ -259,14 +254,16 @@ export default function CampaignDetailPage({ params }: PageProps) {
               ) : (
                 <div className="space-y-2">
                   <Label htmlFor="bulk-discount-amount">
-                    <T>Discount amount (cents)</T>
+                    <T>Reward amount (SAR)</T>
                   </Label>
                   <Input
                     id="bulk-discount-amount"
                     type="number"
-                    min={1}
-                    value={bulkDiscountAmount}
-                    onChange={(e) => setBulkDiscountAmount(Number(e.target.value))}
+                    inputMode="decimal"
+                    min={0.01}
+                    step={0.01}
+                    value={bulkDiscountAmountSar}
+                    onChange={(e) => setBulkDiscountAmountSar(Number(e.target.value))}
                     className="w-44"
                   />
                 </div>
@@ -279,7 +276,10 @@ export default function CampaignDetailPage({ params }: PageProps) {
                       ? { count: bulkCount, giftBalance: bulkGiftBalance }
                       : {
                           count: bulkCount,
-                          discount: { type: "AMOUNT", amount: bulkDiscountAmount },
+                          discount: {
+                            type: "AMOUNT",
+                            amount: Math.round(bulkDiscountAmountSar * 100),
+                          },
                         },
                   )
                 }
@@ -289,14 +289,14 @@ export default function CampaignDetailPage({ params }: PageProps) {
                 {bulk.isPending ? <T>Generating…</T> : <T>Generate codes</T>}
               </Button>
               <Button variant="outline" render={<Link href={`/vouchers/new?campaignId=${id}`} />}>
-                <T>Single voucher</T>
+                <T>Single code</T>
               </Button>
             </div>
 
             <DataTable
               columns={voucherColumns}
               data={vouchers?.data ?? []}
-              emptyMessage={<T>No vouchers in this campaign.</T>}
+              emptyMessage={<T>No codes in this promotion.</T>}
             />
           </CardContent>
         </Card>

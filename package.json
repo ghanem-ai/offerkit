@@ -29,9 +29,13 @@
   },
   "pnpm": {
     "overrides": {
+      "@hono/node-server": "2.0.10",
+      "@babel/core@<7.29.6": "7.29.6",
+      "body-parser": "2.3.0",
+      "brace-expansion": "5.0.8",
       "esbuild": "0.28.1",
       "fast-uri": "3.1.4",
-      "hono": "4.12.25",
+      "hono": "4.12.27",
       "js-yaml": "4.3.0",
       "postcss": "8.5.18",
       "qs": "6.15.2",
@@ -40,7 +44,8 @@
       "vite": "8.0.16"
     },
     "patchedDependencies": {
-      "@better-auth/sso@1.6.25": "patches/@better-auth__sso@1.6.25.patch"
+      "@better-auth/sso@1.6.25": "patches/@better-auth__sso@1.6.25.patch",
+      "minimatch@3.1.5": "patches/minimatch@3.1.5.patch"
     }
   }
 }

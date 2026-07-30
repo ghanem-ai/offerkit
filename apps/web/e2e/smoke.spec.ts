@@ -7,22 +7,18 @@ test.describe("dashboard smoke", () => {
     // the password-rotation handled once during setup).
     await page.goto("/dashboard");
     // The dashboard shows grouped tile cards and the sidebar nav.
-    for (const href of [
-      "/customers",
-      "/campaigns",
-      "/vouchers",
-      "/loyalty",
-      "/webhooks",
-      "/settings",
-    ]) {
+    for (const href of ["/campaigns", "/vouchers", "/orders"]) {
       await expect(page.locator(`a[href="${href}"] [data-slot="card"]`)).toBeVisible();
     }
+    await expect(page.locator('a[href="/customers"]')).toHaveCount(0);
+    await expect(page.locator('a[href="/referrals"]')).toHaveCount(0);
+    await expect(page.locator('a[href="/settings"]')).toHaveCount(0);
   });
 
-  test("campaigns page loads without server errors", async ({ page }) => {
+  test("promotions page loads without server errors", async ({ page }) => {
     await page.goto("/campaigns");
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
-      /campaigns/i,
+      /promotions/i,
     );
   });
 });
