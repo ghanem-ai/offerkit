@@ -1,15 +1,15 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("admin route gate", () => {
-  test("admin sees Users + Audit log in nav and the users page renders", async ({
+  test("admin utilities stay hidden from operator nav but remain accessible", async ({
     page,
   }) => {
     await page.goto("/dashboard");
 
-    // Admin-only nav entries are hidden for member-role users; for an
-    // admin they must be visible.
-    await expect(page.getByRole("link", { name: /^users$/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Audit log", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: /^users$/i })).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "Audit log", exact: true }),
+    ).toHaveCount(0);
 
     await page.goto("/settings/users");
     await expect(page.getByRole("heading", { level: 1 })).toContainText(

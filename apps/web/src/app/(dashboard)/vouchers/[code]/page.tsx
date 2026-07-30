@@ -33,7 +33,8 @@ export default function VoucherDetailPage({ params }: PageProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const gt = useGT();
-  const [orderAmount, setOrderAmount] = useState(10000);
+  const [orderAmountSar, setOrderAmountSar] = useState(100);
+  const [customerExternalId, setCustomerExternalId] = useState("");
   const [redeemKey, setRedeemKey] = useState("");
 
   const { data, isLoading } = useQuery({
@@ -76,7 +77,7 @@ export default function VoucherDetailPage({ params }: PageProps) {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["vouchers"] });
-      toast.success(gt("Voucher updated"));
+      toast.success(gt("Promotion code updated"));
     },
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : gt("Update failed"));
@@ -87,7 +88,7 @@ export default function VoucherDetailPage({ params }: PageProps) {
     mutationFn: () => ovx().vouchers.delete({ params: { code } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["vouchers"] });
-      toast.success(gt("Voucher deleted"));
+      toast.success(gt("Promotion code deleted"));
       router.push("/vouchers");
     },
     onError: (err: unknown) => {
@@ -99,7 +100,10 @@ export default function VoucherDetailPage({ params }: PageProps) {
     mutationFn: (amount: number) =>
       ovx().vouchers.validate({
         params: { code },
-        body: { order: { amount, currency: campaign?.currency ?? "", items: [] } },
+        body: {
+          customerExternalId,
+          order: { amount, currency: campaign?.currency ?? "", items: [] },
+        },
       }),
   });
 
@@ -109,6 +113,7 @@ export default function VoucherDetailPage({ params }: PageProps) {
         params: { code },
         body: {
           order: { amount: vars.amount, currency: campaign?.currency ?? "", items: [] },
+          customerExternalId,
           idempotencyKey: vars.idempotencyKey,
         },
       }),
@@ -128,7 +133,7 @@ export default function VoucherDetailPage({ params }: PageProps) {
   if (!data)
     return (
       <p className="text-sm text-muted-foreground">
-        <T>Voucher not found.</T>
+        <T>Promotion code not found.</T>
       </p>
     );
   if (data.campaignId && campaignLoading) {
@@ -141,7 +146,7 @@ export default function VoucherDetailPage({ params }: PageProps) {
   if (data.campaignId && !campaign) {
     return (
       <p className="text-sm text-muted-foreground">
-        <T>Campaign not found; voucher dates cannot be edited safely.</T>
+        <T>Promotion not found; code dates cannot be edited safely.</T>
       </p>
     );
   }
@@ -181,7 +186,7 @@ export default function VoucherDetailPage({ params }: PageProps) {
           <Button
             variant="ghost"
             size="icon"
-            render={<Link href="/vouchers" aria-label={gt("Back to vouchers")} />}
+            render={<Link href="/vouchers" aria-label={gt("Back to promotion codes")} />}
           >
             <ArrowLeft className="size-4" />
           </Button>
@@ -200,11 +205,11 @@ export default function VoucherDetailPage({ params }: PageProps) {
               <T>Delete</T>
             </Button>
           }
-          title={gt("Delete this voucher?")}
+          title={gt("Delete this promotion code?")}
           description={gt(
-            "The voucher is soft-deleted. Redemption history is preserved.",
+            "The code is hidden. Redemption history is preserved.",
           )}
-          confirmLabel={gt("Delete voucher")}
+          confirmLabel={gt("Delete code")}
           destructive
           pending={remove.isPending}
           onConfirm={() => remove.mutate()}
@@ -212,6 +217,7 @@ export default function VoucherDetailPage({ params }: PageProps) {
       </header>
 
       <VoucherForm
+        ghanemOperatorMode
         timeZone={timeZone}
         key={`${data.updatedAt}:${customer?.updatedAt ?? ""}`}
         mode="edit"
@@ -239,15 +245,29 @@ export default function VoucherDetailPage({ params }: PageProps) {
           <div className="flex items-end gap-2">
             <div className="space-y-2">
               <Label htmlFor="order-amount">
-                <T>Order amount (minor units)</T>
+                <T>Order amount (SAR)</T>
               </Label>
               <Input
                 id="order-amount"
                 type="number"
-                min={0}
-                value={orderAmount}
-                onChange={(e) => setOrderAmount(Number(e.target.value))}
+                inputMode="decimal"
+                min={0.01}
+                step={0.01}
+                value={orderAmountSar}
+                onChange={(e) => setOrderAmountSar(Number(e.target.value))}
                 className="w-40"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="test-customer-id">
+                <T>Customer external ID</T>
+              </Label>
+              <Input
+                id="test-customer-id"
+                value={customerExternalId}
+                onChange={(e) => setCustomerExternalId(e.target.value)}
+                placeholder={gt("Required for per-customer limits")}
+                className="w-64"
               />
             </div>
             <div className="space-y-2">
@@ -265,8 +285,12 @@ export default function VoucherDetailPage({ params }: PageProps) {
             <Button
               type="button"
               variant="outline"
-              onClick={() => validatePreview.mutate(orderAmount)}
-              disabled={validatePreview.isPending || !campaignCurrency}
+              onClick={() => validatePreview.mutate(Math.round(orderAmountSar * 100))}
+              disabled={
+                validatePreview.isPending ||
+                !campaignCurrency ||
+                !customerExternalId.trim()
+              }
             >
               {validatePreview.isPending ? <T>Validating…</T> : <T>Validate</T>}
             </Button>
@@ -274,11 +298,15 @@ export default function VoucherDetailPage({ params }: PageProps) {
               type="button"
               onClick={() =>
                 redeem.mutate({
-                  amount: orderAmount,
+                  amount: Math.round(orderAmountSar * 100),
                   idempotencyKey: redeemKey || undefined,
                 })
               }
-              disabled={redeem.isPending || !campaignCurrency}
+              disabled={
+                redeem.isPending ||
+                !campaignCurrency ||
+                !customerExternalId.trim()
+              }
             >
               {redeem.isPending ? <T>Redeeming…</T> : <T>Redeem</T>}
             </Button>

@@ -27,6 +27,8 @@ export interface DashboardSectionItem {
   icon: ComponentType<{ className?: string }>;
   /** Render only for users with role=admin. */
   adminOnly?: boolean;
+  /** Keep the route available while hiding it from the Ghanem operator dashboard. */
+  hidden?: boolean;
 }
 
 export interface DashboardSection {
@@ -54,12 +56,14 @@ export const dashboardSections: DashboardSection[] = [
         label: "Customers",
         description: "People who can redeem vouchers and earn loyalty points.",
         icon: Users,
+        hidden: true,
       },
       {
         href: "/segments",
         label: "Segments",
         description: "Audience rules for targeting campaigns and offers.",
         icon: ListTree,
+        hidden: true,
       },
     ],
   },
@@ -68,14 +72,14 @@ export const dashboardSections: DashboardSection[] = [
     items: [
       {
         href: "/campaigns",
-        label: "Campaigns",
-        description: "Discount, gift, loyalty, referral and promotion programs.",
+        label: "Promotions",
+        description: "Create and manage fixed-SAR promotion-code campaigns.",
         icon: Megaphone,
       },
       {
         href: "/vouchers",
-        label: "Vouchers",
-        description: "Issued codes, balances, redemption tests, and status changes.",
+        label: "Promotion codes",
+        description: "Issued fixed-SAR codes, redemption limits, and status changes.",
         icon: TicketPercent,
       },
       {
@@ -89,6 +93,7 @@ export const dashboardSections: DashboardSection[] = [
         label: "Insights",
         description: "Redemption volume, top campaigns, and validation failures.",
         icon: BarChart3,
+        hidden: true,
       },
     ],
   },
@@ -100,12 +105,14 @@ export const dashboardSections: DashboardSection[] = [
         label: "Loyalty",
         description: "Points, tiers, member balances, and loyalty rewards.",
         icon: Coins,
+        hidden: true,
       },
       {
         href: "/referrals",
         label: "Referrals",
         description: "Referral codes, conversions, and reward issuance.",
         icon: UserPlus,
+        hidden: true,
       },
     ],
   },
@@ -117,24 +124,28 @@ export const dashboardSections: DashboardSection[] = [
         label: "Validation rules",
         description: "Reusable checks for voucher and promotion eligibility.",
         icon: ClipboardList,
+        hidden: true,
       },
       {
         href: "/rewards",
         label: "Reward types",
         description: "Custom reward definitions attached to vouchers and programs.",
         icon: Gift,
+        hidden: true,
       },
       {
         href: "/events",
         label: "Events",
         description: "Workspace event stream for customer and promotion activity.",
         icon: ScrollText,
+        hidden: true,
       },
       {
         href: "/webhooks",
         label: "Webhooks",
         description: "Delivery endpoints and signing secrets for outbound events.",
         icon: Webhook,
+        hidden: true,
       },
     ],
   },
@@ -146,6 +157,7 @@ export const dashboardSections: DashboardSection[] = [
         label: "API keys",
         description: "Scoped API credentials for server integrations.",
         icon: Key,
+        hidden: true,
       },
       {
         href: "/settings/audit-log",
@@ -153,6 +165,7 @@ export const dashboardSections: DashboardSection[] = [
         description: "Admin-only mutation history across dashboard and API actions.",
         icon: FileText,
         adminOnly: true,
+        hidden: true,
       },
       {
         href: "/settings/users",
@@ -160,12 +173,14 @@ export const dashboardSections: DashboardSection[] = [
         description: "Admin-only staff accounts and role management.",
         icon: Boxes,
         adminOnly: true,
+        hidden: true,
       },
       {
         href: "/settings",
         label: "Workspace",
         description: "Workspace profile, currency, and operational defaults.",
         icon: Settings,
+        hidden: true,
       },
     ],
   },

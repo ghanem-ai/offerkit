@@ -18,7 +18,9 @@ export function DashboardNav({ role }: { role: "admin" | "member" }) {
   return (
     <>
       {dashboardSections.map((section) => {
-        const items = section.items.filter((it) => !it.adminOnly || role === "admin");
+        const items = section.items.filter(
+          (item) => !item.hidden && (!item.adminOnly || role === "admin"),
+        );
         if (items.length === 0) return null;
         return (
           <SidebarGroup key={section.label}>

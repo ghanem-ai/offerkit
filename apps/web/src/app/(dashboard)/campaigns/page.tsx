@@ -19,7 +19,12 @@ export default function CampaignsPage() {
   const [search, setSearch] = useState("");
   const { data, isLoading } = useQuery({
     queryKey: ["campaigns", { search }],
-    queryFn: () => ovx().campaigns.list({ search: search || undefined, limit: 20 }),
+    queryFn: () =>
+      ovx().campaigns.list({
+        search: search || undefined,
+        type: "DISCOUNT",
+        limit: 20,
+      }),
   });
   const columns: ColumnDef<CampaignRow>[] = [
     {
@@ -30,11 +35,6 @@ export default function CampaignsPage() {
           {row.original.name}
         </Link>
       ),
-    },
-    {
-      accessorKey: "type",
-      header: () => <T>Type</T>,
-      cell: ({ row }) => <span className="text-muted-foreground">{row.original.type}</span>,
     },
     {
       accessorKey: "status",
@@ -68,15 +68,15 @@ export default function CampaignsPage() {
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            <T>Campaigns</T>
+            <T>Promotions</T>
           </h1>
           <p className="text-sm text-muted-foreground">
-            <T>Discount, gift, loyalty, referral and promotion programs.</T>
+            <T>Create and manage fixed-SAR promotion-code campaigns.</T>
           </p>
         </div>
         <Button render={<Link href="/campaigns/new" />}>
           <Plus className="size-4" />
-          <T>New campaign</T>
+          <T>New promotion</T>
         </Button>
       </header>
 
@@ -94,7 +94,7 @@ export default function CampaignsPage() {
         columns={columns}
         data={data?.data ?? []}
         isLoading={isLoading}
-        emptyMessage={<T>No campaigns yet.</T>}
+        emptyMessage={<T>No promotions yet.</T>}
       />
     </div>
   );

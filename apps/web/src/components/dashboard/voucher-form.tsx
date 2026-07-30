@@ -173,6 +173,7 @@ export function VoucherForm({
   pending,
   mode,
   timeZone,
+  ghanemOperatorMode = false,
 }: {
   initial: VoucherFormState;
   submitLabel: string;
@@ -180,6 +181,8 @@ export function VoucherForm({
   pending: boolean;
   mode: "create" | "edit";
   timeZone?: string;
+  /** Shows only the fixed-SAR promotion fields used by Ghanem operators. */
+  ghanemOperatorMode?: boolean;
 }) {
   const gt = useGT();
   const schema = useMemo(() => voucherFormSchema(mode, timeZone), [mode, timeZone]);
@@ -204,7 +207,7 @@ export function VoucherForm({
       <Card>
         <CardHeader>
           <CardTitle>
-            <T>Voucher</T>
+            {ghanemOperatorMode ? <T>Promotion code</T> : <T>Voucher</T>}
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -230,7 +233,7 @@ export function VoucherForm({
               </div>
             )}
           </form.Field>
-          <form.Field name="campaignId">
+          {!ghanemOperatorMode ? <form.Field name="campaignId">
             {(field) => (
               <div className="space-y-2">
                 <Label htmlFor={field.name}>
@@ -250,8 +253,8 @@ export function VoucherForm({
                 />
               </div>
             )}
-          </form.Field>
-          <form.Field name="type">
+          </form.Field> : null}
+          {!ghanemOperatorMode ? <form.Field name="type">
             {(field) => (
               <div className="space-y-2">
                 <Label>
@@ -282,7 +285,7 @@ export function VoucherForm({
                 />
               </div>
             )}
-          </form.Field>
+          </form.Field> : null}
           <form.Field name="redemptionLimit">
             {(field) => (
               <div className="space-y-2">
@@ -331,7 +334,7 @@ export function VoucherForm({
               </div>
             )}
           </form.Field>
-          <form.Field name="customerId">
+          {!ghanemOperatorMode ? <form.Field name="customerId">
             {(field) => (
               <div className="space-y-2">
                 <Label htmlFor={field.name}>
@@ -353,8 +356,8 @@ export function VoucherForm({
                 />
               </div>
             )}
-          </form.Field>
-          <form.Field name="customerExternalId">
+          </form.Field> : null}
+          {!ghanemOperatorMode ? <form.Field name="customerExternalId">
             {(field) => (
               <div className="space-y-2">
                 <Label htmlFor={field.name}>
@@ -376,13 +379,13 @@ export function VoucherForm({
                 />
               </div>
             )}
-          </form.Field>
+          </form.Field> : null}
         </CardContent>
       </Card>
 
       <form.Subscribe selector={(s) => s.values.type}>
         {(type) =>
-          type === "GIFT_CARD" ? (
+          !ghanemOperatorMode && type === "GIFT_CARD" ? (
             <Card>
               <CardHeader>
                 <CardTitle>
@@ -445,11 +448,11 @@ export function VoucherForm({
       <Card>
         <CardHeader>
           <CardTitle>
-            <T>Discount</T>
+            {ghanemOperatorMode ? <T>Reward</T> : <T>Discount</T>}
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <form.Field name="discountKind">
+          {!ghanemOperatorMode ? <form.Field name="discountKind">
             {(field) => (
               <div className="space-y-2">
                 <Label>
@@ -480,18 +483,32 @@ export function VoucherForm({
                 />
               </div>
             )}
-          </form.Field>
+          </form.Field> : null}
           <form.Field name="discountValue">
             {(field) => (
               <div className="space-y-2">
                 <Label htmlFor={field.name}>
-                  <form.Subscribe selector={(s) => s.values.discountKind}>
+                  {ghanemOperatorMode ? (
+                    <T>Reward amount (SAR)</T>
+                  ) : <form.Subscribe selector={(s) => s.values.discountKind}>
                     {(kind) =>
                       kind === "PERCENTAGE" ? <T>Discount percentage</T> : <T>Discount amount</T>
                     }
-                  </form.Subscribe>
+                  </form.Subscribe>}
                 </Label>
-                <form.Subscribe selector={(s) => s.values.discountKind}>
+                {ghanemOperatorMode ? (
+                  <DecimalInput
+                    id={field.name}
+                    value={field.state.value}
+                    onChange={(value) => field.handleChange(value)}
+                    scale={100}
+                    decimals={2}
+                    min={0.01}
+                    placeholder="25.00"
+                    suffix="SAR"
+                    invalid={field.state.meta.errors.length > 0}
+                  />
+                ) : <form.Subscribe selector={(s) => s.values.discountKind}>
                   {(kind) =>
                     kind === "PERCENTAGE" ? (
                       <>
@@ -525,7 +542,7 @@ export function VoucherForm({
                       </>
                     )
                   }
-                </form.Subscribe>
+                </form.Subscribe>}
                 <FormFieldErrors
                   errors={field.state.meta.errors}
                   visible={field.state.meta.isTouched}
@@ -533,7 +550,7 @@ export function VoucherForm({
               </div>
             )}
           </form.Field>
-          <form.Field name="maxDiscountAmount">
+          {!ghanemOperatorMode ? <form.Field name="maxDiscountAmount">
             {(field) => (
               <div className="space-y-2">
                 <Label htmlFor={field.name}>
@@ -555,8 +572,8 @@ export function VoucherForm({
                 />
               </div>
             )}
-          </form.Field>
-          <form.Field name="priority">
+          </form.Field> : null}
+          {!ghanemOperatorMode ? <form.Field name="priority">
             {(field) => (
               <div className="space-y-2">
                 <Label htmlFor={field.name}>
@@ -575,8 +592,8 @@ export function VoucherForm({
                 />
               </div>
             )}
-          </form.Field>
-          <form.Field name="exclusive">
+          </form.Field> : null}
+          {!ghanemOperatorMode ? <form.Field name="exclusive">
             {(field) => (
               <div className="flex items-center gap-3">
                 <Switch
@@ -589,7 +606,7 @@ export function VoucherForm({
                 </Label>
               </div>
             )}
-          </form.Field>
+          </form.Field> : null}
           <form.Field name="active">
             {(field) => (
               <div className="flex items-center gap-3">

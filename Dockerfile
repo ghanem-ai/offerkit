@@ -54,4 +54,5 @@ COPY --from=worker-prod-deps /prod/worker/node_modules ./apps/worker/node_module
 COPY --from=builder /app/packages/db/drizzle ./packages/db/drizzle
 
 EXPOSE 3000 9091
+USER 65532:65532
 CMD ["apps/web/server.js"]

@@ -112,6 +112,22 @@ const list = os.vouchers.list
     const filters = [];
     if (search) filters.push(ilike(schema.voucher.code, `%${search}%`));
     if (input.campaignId) filters.push(eq(schema.voucher.campaignId, input.campaignId));
+    if (input.campaignType) {
+      filters.push(
+        inArray(
+          schema.voucher.campaignId,
+          db()
+            .select({ id: schema.campaign.id })
+            .from(schema.campaign)
+            .where(
+              and(
+                eq(schema.campaign.type, input.campaignType),
+                isNull(schema.campaign.deletedAt),
+              ),
+            ),
+        ),
+      );
+    }
     if (input.customerId) filters.push(eq(schema.voucher.customerId, input.customerId));
     if (input.active !== undefined) filters.push(eq(schema.voucher.active, input.active));
     return paginatedSoftDeleteList<VoucherRow, ReturnType<typeof toVoucher>>({

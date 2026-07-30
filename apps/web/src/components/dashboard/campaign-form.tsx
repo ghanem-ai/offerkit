@@ -15,12 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import {
-  CURRENCY_OPTIONS,
-  TIMEZONE_OPTIONS,
-  optionsWithCurrent,
-} from "@/lib/locale-options";
 import {
   campaignFormSchema,
   type CampaignFormState,
@@ -28,16 +22,8 @@ import {
 
 export type { CampaignFormState } from "@/lib/forms/campaign";
 
-type CampaignType = CampaignFormState["type"];
 type CampaignStatus = CampaignFormState["status"];
 
-const TYPES: CampaignType[] = [
-  "DISCOUNT",
-  "GIFT_VOUCHERS",
-  "LOYALTY_PROGRAM",
-  "REFERRAL_PROGRAM",
-  "PROMOTION",
-];
 const STATUSES: CampaignStatus[] = ["draft", "active", "paused", "ended"];
 
 export function CampaignForm({
@@ -121,35 +107,6 @@ export function CampaignForm({
               </div>
             )}
           </form.Field>
-          <form.Field name="type">
-            {(field) => (
-              <div className="space-y-2">
-                <Label>
-                  <T>Type</T>
-                </Label>
-                <Select
-                  value={field.state.value}
-                  onValueChange={(v) => field.handleChange(v as CampaignType)}
-                  disabled={mode === "edit"}
-                >
-                  <SelectTrigger aria-invalid={field.state.meta.errors.length > 0}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormFieldErrors
-                  errors={field.state.meta.errors}
-                  visible={field.state.meta.isTouched}
-                />
-              </div>
-            )}
-          </form.Field>
           {mode === "edit" ? (
             <form.Field name="status">
               {(field) => (
@@ -183,75 +140,6 @@ export function CampaignForm({
               )}
             </form.Field>
           ) : null}
-          <form.Field name="currency">
-            {(field) => (
-              <div className="space-y-2">
-                <Label htmlFor={field.name}>
-                  <T>Currency</T>
-                </Label>
-                <Select
-                  value={field.state.value}
-                  required
-                  onValueChange={(value) => {
-                    if (value) field.handleChange(value);
-                  }}
-                >
-                  <SelectTrigger
-                    id={field.name}
-                    className="w-full"
-                    aria-invalid={field.state.meta.errors.length > 0}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {optionsWithCurrent(CURRENCY_OPTIONS, field.state.value).map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormFieldErrors
-                  errors={field.state.meta.errors}
-                  visible={field.state.meta.isTouched}
-                />
-              </div>
-            )}
-          </form.Field>
-          <form.Field name="timezone">
-            {(field) => (
-              <div className="space-y-2">
-                <Label htmlFor={field.name}>
-                  <T>Timezone</T>
-                </Label>
-                <Select
-                  value={field.state.value}
-                  onValueChange={(value) => {
-                    if (value) field.handleChange(value);
-                  }}
-                >
-                  <SelectTrigger
-                    id={field.name}
-                    className="w-full"
-                    aria-invalid={field.state.meta.errors.length > 0}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {optionsWithCurrent(TIMEZONE_OPTIONS, field.state.value).map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormFieldErrors
-                  errors={field.state.meta.errors}
-                  visible={field.state.meta.isTouched}
-                />
-              </div>
-            )}
-          </form.Field>
           <form.Field name="startDate">
             {(field) => (
               <div className="space-y-2">
@@ -284,102 +172,6 @@ export function CampaignForm({
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                   aria-invalid={field.state.meta.errors.length > 0}
-                />
-                <FormFieldErrors
-                  errors={field.state.meta.errors}
-                  visible={field.state.meta.isTouched}
-                />
-              </div>
-            )}
-          </form.Field>
-          <form.Field name="autoApply">
-            {(field) => (
-              <div className="flex items-center gap-3 sm:col-span-2">
-                <Switch
-                  id={field.name}
-                  checked={field.state.value}
-                  onCheckedChange={(v) => field.handleChange(v)}
-                />
-                <Label htmlFor={field.name} className="cursor-pointer">
-                  <T>Auto-apply at checkout</T>
-                </Label>
-              </div>
-            )}
-          </form.Field>
-          <form.Field name="perUserRedemptionLimit">
-            {(field) => (
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor={field.name}>
-                  <T>Per-customer limit across this campaign</T>
-                </Label>
-                <Input
-                  id={field.name}
-                  type="number"
-                  min={1}
-                  value={field.state.value}
-                  onChange={(e) =>
-                    field.handleChange(e.target.value === "" ? "" : Number(e.target.value))
-                  }
-                  aria-invalid={field.state.meta.errors.length > 0}
-                  placeholder={gt("No campaign-level user cap")}
-                />
-                <p className="text-xs text-muted-foreground">
-                  <T>
-                    Counts redemptions across every voucher in this campaign. Leave blank when each
-                    voucher should enforce its own customer limit.
-                  </T>
-                </p>
-                <FormFieldErrors
-                  errors={field.state.meta.errors}
-                  visible={field.state.meta.isTouched}
-                />
-              </div>
-            )}
-          </form.Field>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <T>Code generation defaults</T>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <form.Field name="codeLength">
-            {(field) => (
-              <div className="space-y-2">
-                <Label htmlFor={field.name}>
-                  <T>Code length</T>
-                </Label>
-                <Input
-                  id={field.name}
-                  type="number"
-                  min={4}
-                  max={32}
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(Number(e.target.value))}
-                  aria-invalid={field.state.meta.errors.length > 0}
-                />
-                <FormFieldErrors
-                  errors={field.state.meta.errors}
-                  visible={field.state.meta.isTouched}
-                />
-              </div>
-            )}
-          </form.Field>
-          <form.Field name="codePrefix">
-            {(field) => (
-              <div className="space-y-2">
-                <Label htmlFor={field.name}>
-                  <T>Code prefix</T>
-                </Label>
-                <Input
-                  id={field.name}
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  aria-invalid={field.state.meta.errors.length > 0}
-                  placeholder={gt("Optional, e.g. SUMMER-")}
                 />
                 <FormFieldErrors
                   errors={field.state.meta.errors}

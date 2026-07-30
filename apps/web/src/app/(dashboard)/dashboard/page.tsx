@@ -6,13 +6,13 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 
 export default async function DashboardPage() {
   const role = getDashboardRole(await requireDashboardSession());
-  const sections = dashboardSections
-    .filter((section) => section.label !== "Overview")
-    .map((section) => ({
-      ...section,
-      items: section.items.filter((item) => !item.adminOnly || role === "admin"),
-    }))
-    .filter((section) => section.items.length > 0);
+  const sections = dashboardSections.flatMap((section) => {
+    if (section.label === "Overview") return [];
+    const items = section.items.filter(
+      (item) => !item.hidden && (!item.adminOnly || role === "admin"),
+    );
+    return items.length > 0 ? [{ ...section, items }] : [];
+  });
 
   return (
     <div className="space-y-8">
