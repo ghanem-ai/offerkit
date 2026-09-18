@@ -17,6 +17,7 @@ export function failureExplanation(
     | "perUserRedemptionLimit"
     | "giftBalance"
     | "type"
+    | "metadata"
   >,
   details: Record<string, string | number | boolean | null> = {},
 ): RedemptionExplanation {
@@ -41,6 +42,10 @@ export function failureExplanation(
     if (code === "gift_balance_zero") safeDetails.giftBalance = voucher.giftBalance ?? 0;
     if (code === "campaign_inactive") safeDetails.campaignId = voucher.campaignId ?? null;
     if (code === "no_discount_effect") safeDetails.type = voucher.type;
+    if (code === "app_mismatch") {
+      const app = voucher.metadata?.["app"];
+      safeDetails.app = typeof app === "string" ? app : null;
+    }
   }
 
   return {

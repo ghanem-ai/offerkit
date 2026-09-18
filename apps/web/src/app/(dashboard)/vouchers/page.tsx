@@ -61,6 +61,14 @@ export default function VouchersPage() {
       ),
     },
     {
+      id: "app",
+      header: () => <T>App</T>,
+      cell: ({ row }) => {
+        const app = row.original.metadata?.["app"];
+        return <span className="capitalize">{typeof app === "string" ? app : "—"}</span>;
+      },
+    },
+    {
       accessorKey: "redemptionCount",
       header: () => <div className="text-right"><T>Redemptions</T></div>,
       cell: ({ row }) => (

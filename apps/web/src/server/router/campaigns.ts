@@ -128,7 +128,7 @@ const createPromotion = os.campaigns.createPromotion
           },
           perUserRedemptionLimit: input.perUserRedemptionLimit ?? 1,
           voucherCount: 1,
-          metadata: { surface: "ghanem_promotion" },
+          metadata: { surface: "ghanem_promotion", app: input.app },
         })
         .returning();
       if (!campaign) {
@@ -148,7 +148,7 @@ const createPromotion = os.campaigns.createPromotion
           perUserRedemptionLimit: input.perUserRedemptionLimit ?? 1,
           startDate: input.startDate ? new Date(input.startDate) : null,
           endDate: input.endDate ? new Date(input.endDate) : null,
-          metadata: { type: "promo" },
+          metadata: { type: "promo", app: input.app },
         })
         .returning();
       if (!voucher) {

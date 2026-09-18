@@ -35,6 +35,7 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
 
     const created = await client.campaigns.createPromotion({
       name,
+      app: "ghanem",
       code,
       amount: 2_500,
       status: "active",
@@ -50,6 +51,7 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
       currency: "SAR",
       timezone: "Asia/Riyadh",
       voucherCount: 1,
+      metadata: { surface: "ghanem_promotion", app: "ghanem" },
     });
     expect(created.voucher).toMatchObject({
       code,
@@ -58,7 +60,7 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
       discount: { type: "AMOUNT", amount: 2_500 },
       redemptionLimit: 10,
       perUserRedemptionLimit: 1,
-      metadata: { type: "promo" },
+      metadata: { type: "promo", app: "ghanem" },
     });
 
     const visibleCodes = await client.vouchers.list({
@@ -68,10 +70,15 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
     });
     expect(visibleCodes.data.map((voucher) => voucher.id)).toContain(created.voucher.id);
 
+    const ghanemCustomer = randomId("customer");
+    await client.customers.upsert({
+      externalId: ghanemCustomer,
+      metadata: { app: "ghanem" },
+    });
     const validation = await client.vouchers.validate({
       params: { code },
       body: {
-        customerExternalId: randomId("customer"),
+        customerExternalId: ghanemCustomer,
         order: { amount: 2_500, currency: "SAR" },
       },
     });
@@ -83,7 +90,7 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
     const redemption = await client.vouchers.redeem({
       params: { code },
       body: {
-        customerExternalId: randomId("customer"),
+        customerExternalId: ghanemCustomer,
         order: { amount: 2_500, currency: "SAR" },
         idempotencyKey: randomId("promotion-redemption"),
       },
@@ -93,6 +100,7 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
     await expect(
       client.campaigns.createPromotion({
         name: `${name}-duplicate`,
+        app: "ghanem",
         code,
         amount: 2_500,
       }),
@@ -103,6 +111,68 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
       limit: 5,
     });
     expect(duplicateCampaign.data).toHaveLength(0);
+  });
+
+  it("rejects a promotion code for customers of the other app", async () => {
+    if (!token) throw new Error("setup failed");
+    const client = makeClient(token);
+    const code = randomId("MUDER").toUpperCase();
+    const created = await client.campaigns.createPromotion({
+      name: randomId("muder-promotion"),
+      app: "muder",
+      code,
+      amount: 1_000,
+    });
+    expect(created.voucher.metadata).toMatchObject({ app: "muder" });
+
+    const muderCustomer = randomId("muder-user");
+    const ghanemCustomer = randomId("ghanem-user");
+    await client.customers.upsert({ externalId: muderCustomer, metadata: { app: "muder" } });
+    await client.customers.upsert({ externalId: ghanemCustomer, metadata: { app: "ghanem" } });
+    const order = { amount: 5_000, currency: "SAR" };
+
+    // Wrong app: validate and redeem both fail with app_mismatch.
+    const crossValidation = await client.vouchers.validate({
+      params: { code },
+      body: { customerExternalId: ghanemCustomer, order },
+    });
+    expect(crossValidation).toMatchObject({ valid: false, code: "app_mismatch" });
+    const crossRedemption = await client.vouchers.redeem({
+      params: { code },
+      body: { customerExternalId: ghanemCustomer, order },
+    });
+    expect(crossRedemption).toMatchObject({ ok: false, code: "app_mismatch" });
+
+    // Unknown customer (auto-created, untagged): also rejected.
+    const anonymous = await client.vouchers.redeem({
+      params: { code },
+      body: { customerExternalId: randomId("untagged"), order },
+    });
+    expect(anonymous).toMatchObject({ ok: false, code: "app_mismatch" });
+
+    // No customer at all: rejected (per-customer limit check runs first).
+    const noCustomer = await client.vouchers.validate({ params: { code }, body: { order } });
+    expect(noCustomer).toMatchObject({ valid: false, code: "customer_required" });
+
+    // Right app: succeeds.
+    const ownValidation = await client.vouchers.validate({
+      params: { code },
+      body: { customerExternalId: muderCustomer, order },
+    });
+    expect(ownValidation).toMatchObject({ valid: true, preview: { amount: 1_000 } });
+    const ownRedemption = await client.vouchers.redeem({
+      params: { code },
+      body: { customerExternalId: muderCustomer, order },
+    });
+    expect(ownRedemption).toMatchObject({ ok: true, amount: 1_000 });
+
+    // A code added to the promotion later inherits the campaign's app.
+    const extra = await client.vouchers.create({
+      campaignId: created.campaign.id,
+      type: "DISCOUNT",
+      discount: { type: "AMOUNT", amount: 1_000 },
+    });
+    expect(extra.metadata).toMatchObject({ app: "muder" });
   });
 
   it("create → update → list (search) → soft-delete excludes from list", async () => {

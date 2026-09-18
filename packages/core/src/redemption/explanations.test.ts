@@ -17,6 +17,7 @@ const baseVoucher: VoucherRow = {
   startDate: null,
   endDate: null,
   customerId: null,
+  metadata: {},
   priority: 0,
   exclusive: false,
   deletedAt: null,
@@ -24,6 +25,18 @@ const baseVoucher: VoucherRow = {
 };
 
 describe("redemption explanations", () => {
+  it("includes the voucher app tag for app_mismatch", () => {
+    const explanation = failureExplanation("app_mismatch", {
+      ...baseVoucher,
+      metadata: { app: "muder" },
+    });
+    expect(explanation).toMatchObject({
+      code: "app_mismatch",
+      voucherCode: "SAVE10",
+      details: { app: "muder" },
+    });
+  });
+
   it("returns safe structured details for redemption limit failures", () => {
     const explanation = failureExplanation("redemption_limit_reached", baseVoucher);
 

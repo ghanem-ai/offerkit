@@ -10,7 +10,7 @@ import {
   campaignUpdateInput,
   timezoneName,
 } from "../schemas/campaign.ts";
-import { voucherCreateInput, voucherOutput } from "../schemas/voucher.ts";
+import { voucherApp, voucherCreateInput, voucherOutput } from "../schemas/voucher.ts";
 import { paginatedOutput, paginationInput } from "../schemas/pagination.ts";
 
 export const campaigns = {
@@ -48,6 +48,7 @@ export const campaigns = {
       z
         .object({
           name: campaignName,
+          app: voucherApp,
           description: z.string().max(500).optional(),
           code: z
             .string()

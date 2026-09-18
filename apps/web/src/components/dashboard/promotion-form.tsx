@@ -6,11 +6,26 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toIsoOrUndefined } from "@/lib/forms/shared";
 
+export type PromotionApp = "ghanem" | "muder";
+
+export const PROMOTION_APPS: { value: PromotionApp; label: string }[] = [
+  { value: "ghanem", label: "Ghanem" },
+  { value: "muder", label: "Muder" },
+];
+
 export interface PromotionCreateInput {
   name: string;
+  app: PromotionApp;
   description?: string;
   code?: string;
   amount: number;
@@ -33,6 +48,7 @@ export function PromotionForm({
 }) {
   const gt = useGT();
   const [name, setName] = useState("");
+  const [app, setApp] = useState<PromotionApp | "">("");
   const [description, setDescription] = useState("");
   const [code, setCode] = useState("");
   const [amountSar, setAmountSar] = useState("25.00");
@@ -46,6 +62,10 @@ export function PromotionForm({
     event.preventDefault();
     setError(null);
 
+    if (!app) {
+      setError(gt("Select the app this promotion belongs to."));
+      return;
+    }
     const amount = Math.round(Number(amountSar) * 100);
     if (!Number.isSafeInteger(amount) || amount < 1) {
       setError(gt("Reward amount must be at least SAR 0.01."));
@@ -59,6 +79,7 @@ export function PromotionForm({
     try {
       onSubmit({
         name: name.trim(),
+        app,
         description: description.trim() || undefined,
         code: code.trim() ? code.trim().toUpperCase() : undefined,
         amount,
@@ -97,6 +118,26 @@ export function PromotionForm({
               required
               maxLength={100}
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="promotion-app">
+              <T>App</T>
+            </Label>
+            <Select value={app} onValueChange={(value) => setApp(value as PromotionApp)}>
+              <SelectTrigger id="promotion-app" aria-label={gt("App")}>
+                <SelectValue placeholder={gt("Select app")} />
+              </SelectTrigger>
+              <SelectContent>
+                {PROMOTION_APPS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              <T>Only customers of this app can redeem the code.</T>
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="promotion-code">
@@ -213,7 +254,7 @@ export function PromotionForm({
       ) : null}
 
       <div className="flex justify-end">
-        <Button type="submit" disabled={pending || !name.trim()}>
+        <Button type="submit" disabled={pending || !name.trim() || !app}>
           {pending ? <T>Creating…</T> : <T>Create promotion</T>}
         </Button>
       </div>

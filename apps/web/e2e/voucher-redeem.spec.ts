@@ -11,6 +11,8 @@ test.describe("promotion flow from dashboard", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByLabel("Type", { exact: true })).toHaveCount(0);
     await page.getByLabel("Name", { exact: true }).fill(promotionName);
+    await page.getByRole("combobox", { name: "App" }).click();
+    await page.getByRole("option", { name: "Ghanem" }).click();
     await page.getByLabel("Code", { exact: true }).fill(promotionCode);
     await page.getByLabel(/reward amount \(sar\)/i).fill("25.00");
     await page.getByLabel(/total redemptions/i).fill("2");
@@ -35,6 +37,11 @@ test.describe("promotion flow from dashboard", () => {
     await expect(page.getByText("active", { exact: true })).toBeVisible();
 
     const customerId = `dashboard-e2e-${suffix}`;
+    // Codes are app-tagged; the redeeming customer must carry the same tag.
+    const upsert = await page.request.put("/api/v1/customers/by-external-id", {
+      data: { externalId: customerId, metadata: { app: "ghanem" } },
+    });
+    expect(upsert.ok()).toBe(true);
     await page.getByLabel(/order amount \(sar\)/i).fill("25.00");
     await page.getByLabel(/customer external id/i).fill(customerId);
     await page.getByLabel(/idempotency key/i).fill(`dashboard-${suffix}`);

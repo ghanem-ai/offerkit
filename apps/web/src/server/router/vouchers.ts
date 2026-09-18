@@ -168,6 +168,12 @@ const create = os.vouchers.create
       giftBalance: input.giftBalance,
     });
 
+    const campaignApp = campaign?.metadata?.["app"];
+    const metadata: Record<string, unknown> = { ...(input.metadata ?? {}) };
+    if (typeof campaignApp === "string" && campaignApp && metadata["app"] === undefined) {
+      metadata["app"] = campaignApp;
+    }
+
     let code = input.code;
     if (!code) {
       let codeConfig: Record<string, unknown> = {};
@@ -196,7 +202,7 @@ const create = os.vouchers.create
           startDate: input.startDate ? new Date(input.startDate) : null,
           endDate: input.endDate ? new Date(input.endDate) : null,
           customerId: input.customerId ?? null,
-          metadata: input.metadata ?? {},
+          metadata,
         })
         .returning();
       if (!v) throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Insert failed" });
