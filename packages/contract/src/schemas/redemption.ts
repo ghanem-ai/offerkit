@@ -49,7 +49,6 @@ export const redemptionExplanation = z.object({
     "per_user_redemption_limit_reached",
     "customer_required",
     "customer_mismatch",
-    "app_mismatch",
     "validation_failed",
     "currency_mismatch",
     "gift_balance_zero",

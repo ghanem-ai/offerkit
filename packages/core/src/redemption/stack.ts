@@ -7,7 +7,6 @@ import { failureExplanation, stackBreakdownExplanations } from "./explanations.t
 import { logger, withSpan } from "../observability/index.ts";
 import {
   checkActivation,
-  checkAppBinding,
   checkCampaignActivation,
   checkCampaignValidationRule,
   checkCustomerBinding,
@@ -235,15 +234,6 @@ async function stackRedeemImpl(
           code: customerFailure,
           message: messageFor(customerFailure),
           explanations: [failureExplanation(customerFailure, v)],
-        };
-      }
-      const appFailure = checkAppBinding(v, customer);
-      if (appFailure) {
-        return {
-          ok: false,
-          code: appFailure,
-          message: messageFor(appFailure),
-          explanations: [failureExplanation(appFailure, v)],
         };
       }
       const validationRule = campaign?.validationRuleId

@@ -44,27 +44,6 @@ export function checkCustomerBinding(
   return null;
 }
 
-/** App tag stored on a voucher as `metadata.app`. Empty string when untagged. */
-export function voucherApp(v: Pick<VoucherRow, "metadata">): string {
-  const app = v.metadata?.["app"];
-  return typeof app === "string" ? app.trim() : "";
-}
-
-/**
- * A voucher tagged with `metadata.app` may only be used by a customer whose
- * `metadata.app` carries the same value. Untagged vouchers are not restricted.
- */
-export function checkAppBinding(
-  v: Pick<VoucherRow, "metadata">,
-  customer: Pick<RedemptionCustomerRow, "metadata"> | null | undefined,
-): RedemptionFailureCode | null {
-  const app = voucherApp(v);
-  if (!app) return null;
-  const customerApp = customer?.metadata?.["app"];
-  if (typeof customerApp !== "string" || customerApp.trim() !== app) return "app_mismatch";
-  return null;
-}
-
 export async function checkPerUserRedemptionLimit(
   db: Db | Tx,
   v: VoucherRow,
@@ -410,15 +389,6 @@ export async function validateVoucher(
       explanations: [failureExplanation(customerFailure, voucher)],
     };
   }
-  const appFailure = checkAppBinding(voucher, options.customer);
-  if (appFailure) {
-    return {
-      valid: false,
-      code: appFailure,
-      message: messageFor(appFailure),
-      explanations: [failureExplanation(appFailure, voucher)],
-    };
-  }
   const customerLimitFailure = options.db
     ? await checkPerUserRedemptionLimit(
         options.db,
@@ -511,8 +481,6 @@ export function messageFor(code: RedemptionFailureCode): string {
       return "A customer is required to use this voucher";
     case "customer_mismatch":
       return "Voucher is assigned to a different customer";
-    case "app_mismatch":
-      return "Voucher belongs to a different app";
     case "validation_failed":
       return "Voucher validation rule did not match";
     case "currency_mismatch":

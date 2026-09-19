@@ -50,56 +50,6 @@ async function cleanup(d: Db, voucherId: string): Promise<void> {
 }
 
 describe.skipIf(!enabled)("redeem (live DB)", () => {
-  it("rejects app-tagged vouchers for customers of another app or with no app", async () => {
-    if (!db) throw new Error("no db");
-    const v = await makeVoucher(db, { metadata: { app: "muder" } });
-    const [muder] = await db
-      .insert(schema.customer)
-      .values({ externalId: `muder-${v.code}`, metadata: { app: "muder" } })
-      .returning();
-    const [ghanem] = await db
-      .insert(schema.customer)
-      .values({ externalId: `ghanem-${v.code}`, metadata: { app: "ghanem" } })
-      .returning();
-    if (!muder || !ghanem) throw new Error("customer insert failed");
-    const order = { amount: 5000, currency: "SAR" };
-
-    expect(await validate(db, { voucherCode: v.code, order })).toMatchObject({
-      valid: false,
-      code: "app_mismatch",
-    });
-    expect(await validate(db, { voucherCode: v.code, customerId: ghanem.id, order })).toMatchObject({
-      valid: false,
-      code: "app_mismatch",
-    });
-    expect(await redeem(db, { voucherCode: v.code, customerId: ghanem.id, order })).toMatchObject({
-      ok: false,
-      code: "app_mismatch",
-    });
-    expect(
-      await redeem(db, { voucherCode: v.code, customerExternalId: `fresh-${v.code}`, order }),
-    ).toMatchObject({ ok: false, code: "app_mismatch" });
-    expect(
-      await stackRedeem(db, { voucherCodes: [v.code], customerId: ghanem.id, order }),
-    ).toMatchObject({ ok: false, code: "app_mismatch" });
-
-    expect(await validate(db, { voucherCode: v.code, customerId: muder.id, order })).toMatchObject({
-      valid: true,
-    });
-    expect(await redeem(db, { voucherCode: v.code, customerId: muder.id, order })).toMatchObject({
-      ok: true,
-      amount: 500,
-    });
-  });
-
-  it("leaves untagged vouchers open to any customer", async () => {
-    if (!db) throw new Error("no db");
-    const v = await makeVoucher(db);
-    expect(
-      await validate(db, { voucherCode: v.code, order: { amount: 5000, currency: "SAR" } }),
-    ).toMatchObject({ valid: true });
-  });
-
   it("replays the same response for repeated idempotency keys", async () => {
     if (!db) throw new Error("db not initialized");
     const v = await makeVoucher(db);

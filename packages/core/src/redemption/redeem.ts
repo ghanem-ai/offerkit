@@ -6,7 +6,6 @@ import { failureExplanation } from "./explanations.ts";
 import { logger, withSpan } from "../observability/index.ts";
 import {
   checkActivation,
-  checkAppBinding,
   checkCampaignActivation,
   checkCampaignValidationRule,
   checkCustomerBinding,
@@ -140,24 +139,6 @@ function redeemImpl(db: Db, input: RedeemInput): Promise<RedeemResult> {
         code: customerFailure,
         message: messageFor(customerFailure),
         explanations: [failureExplanation(customerFailure, voucher)],
-      };
-    }
-    const appFailure = checkAppBinding(voucher, resolvedCustomer.customer);
-    if (appFailure) {
-      await tx.insert(schema.redemption).values({
-        voucherId: voucher.id,
-        customerId: resolvedCustomerId ?? null,
-        orderId: input.orderId ?? null,
-        externalOrderId: input.externalOrderId ?? null,
-        result: "FAILURE",
-        failureReason: appFailure,
-        idempotencyKey: input.idempotencyKey ?? null,
-      });
-      return {
-        ok: false,
-        code: appFailure,
-        message: messageFor(appFailure),
-        explanations: [failureExplanation(appFailure, voucher)],
       };
     }
     const lockedCustomer =
