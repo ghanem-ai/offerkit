@@ -171,28 +171,23 @@ const create = os.vouchers.create
 
     const campaignApp = campaign?.metadata?.["app"];
     const metadata: Record<string, unknown> = { ...(input.metadata ?? {}) };
-    if (typeof campaignApp === "string" && campaignApp) {
-      const requestedApp = metadata["app"];
-      // A code must belong to the same app as its campaign. Allowing an override would put a
-      // Ghanem-tagged code inside a Muder promotion, which is exactly the leak the tag prevents.
-      if (requestedApp !== undefined && requestedApp !== campaignApp) {
-        throw new ORPCError("BAD_REQUEST", {
-          message: `Voucher app "${String(requestedApp)}" does not match campaign app "${campaignApp}"`,
-        });
-      }
+    // An explicit metadata.app wins over the campaign's; the campaign only fills the gap. Ghanem
+    // and Muder mint referral codes from the same campaign, so a code's app cannot be required to
+    // match the campaign it hangs off. The cost is that nothing stops a code being tagged for one
+    // app inside another app's promotion — accepted deliberately.
+    if (metadata["app"] === undefined && typeof campaignApp === "string" && campaignApp) {
       metadata["app"] = campaignApp;
-    } else {
-      // No campaign to inherit from. Fail loudly rather than minting a code that carries no app
-      // tag — both backends refuse such a code, so it would look created and be dead on arrival.
-      const parsed = voucherApp.safeParse(metadata["app"]);
-      if (!parsed.success) {
-        throw new ORPCError("BAD_REQUEST", {
-          message:
-            "Voucher needs an app: attach it to a campaign that has one, or set metadata.app to \"ghanem\" or \"muder\"",
-        });
-      }
-      metadata["app"] = parsed.data;
     }
+    // Whatever the source, the code must end up with a real app. Otherwise it is created looking
+    // fine and refused by both backends — dead on arrival with no error at creation time.
+    const app = voucherApp.safeParse(metadata["app"]);
+    if (!app.success) {
+      throw new ORPCError("BAD_REQUEST", {
+        message:
+          "Voucher needs an app: attach it to a campaign that has one, or set metadata.app to \"ghanem\" or \"muder\"",
+      });
+    }
+    metadata["app"] = app.data;
 
     let code = input.code;
     if (!code) {

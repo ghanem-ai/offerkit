@@ -133,7 +133,7 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
     expect(extra.metadata).toMatchObject({ app: "muder" });
   });
 
-  it("refuses a code whose app contradicts its campaign", async () => {
+  it("lets a code override its campaign's app", async () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
     const created = await client.campaigns.createPromotion({
@@ -143,14 +143,15 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
       amount: 1_000,
     });
 
-    await expect(
-      client.vouchers.create({
-        campaignId: created.campaign.id,
-        type: "DISCOUNT",
-        discount: { type: "AMOUNT", amount: 1_000 },
-        metadata: { app: "ghanem" },
-      }),
-    ).rejects.toThrow(/does not match campaign app/);
+    // The campaign's app is a default, not a constraint: Ghanem and Muder mint referral codes
+    // from one campaign, so a code must be able to name an app its campaign does not carry.
+    const overridden = await client.vouchers.create({
+      campaignId: created.campaign.id,
+      type: "DISCOUNT",
+      discount: { type: "AMOUNT", amount: 1_000 },
+      metadata: { app: "ghanem" },
+    });
+    expect(overridden.metadata).toMatchObject({ app: "ghanem" });
   });
 
   it("refuses a campaign-less code that names no app, and accepts one that does", async () => {

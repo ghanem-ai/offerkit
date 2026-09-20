@@ -1,4 +1,6 @@
 -- Backfill app tag: everything created before app scoping belongs to Ghanem.
+-- A campaign's tag is only a default for codes that do not name their own app, so tagging the
+-- shared referral campaign ghanem does not stop muder-api minting muder codes under it.
 UPDATE "campaign"
 SET "metadata" = "metadata" || '{"app":"ghanem"}'::jsonb
 WHERE NOT ("metadata" ? 'app');
