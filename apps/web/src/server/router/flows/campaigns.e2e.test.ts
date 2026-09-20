@@ -133,6 +133,40 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
     expect(extra.metadata).toMatchObject({ app: "muder" });
   });
 
+  it("tags a Muder referral code muder even though the shared campaign is ghanem", async () => {
+    if (!token) throw new Error("setup failed");
+    const client = makeClient(token);
+
+    // The shared referral campaign as migration 0024 leaves it: tagged ghanem.
+    const campaign = await client.campaigns.create({
+      app: "ghanem",
+      name: randomId("referral"),
+      type: "DISCOUNT",
+      currency: "SAR",
+    });
+    expect(campaign.metadata).toMatchObject({ app: "ghanem" });
+
+    // Exactly the payload muder-api's CreateReferralVoucherCommand sends.
+    const muderCode = await client.vouchers.create({
+      campaignId: campaign.id,
+      type: "DISCOUNT",
+      discount: { type: "AMOUNT", amount: 2_500 },
+      perUserRedemptionLimit: 1,
+      metadata: { type: "referral", user_id: randomId("muder-user"), app: "muder" },
+    });
+    expect(muderCode.metadata).toMatchObject({ type: "referral", app: "muder" });
+
+    // api-v2's payload against the same campaign still comes out ghanem.
+    const ghanemCode = await client.vouchers.create({
+      campaignId: campaign.id,
+      type: "DISCOUNT",
+      discount: { type: "AMOUNT", amount: 2_500 },
+      perUserRedemptionLimit: 1,
+      metadata: { type: "referral", user_id: randomId("ghanem-user"), app: "ghanem" },
+    });
+    expect(ghanemCode.metadata).toMatchObject({ type: "referral", app: "ghanem" });
+  });
+
   it("lets a code override its campaign's app", async () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
