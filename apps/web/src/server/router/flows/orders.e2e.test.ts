@@ -65,7 +65,7 @@ describe.skipIf(!E2E_ENABLED)("orders CRUD + lifecycle + redemption attachment",
       currency: "USD",
     });
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-ord"),
       type: "DISCOUNT",
       currency: "USD",

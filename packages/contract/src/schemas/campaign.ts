@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-import { voucherApp } from "./voucher.ts";
-
 export const campaignType = z.enum([
   "DISCOUNT",
   "GIFT_VOUCHERS",
@@ -56,11 +54,6 @@ export const campaignOutput = z.object({
 
 export const campaignCreateInput = z.object({
   name: campaignName,
-  /**
-   * Consumer app that owns this campaign. Stored as `metadata.app` and inherited by every voucher
-   * created under it, which is what keeps Ghanem and Muder codes apart on the shared instance.
-   */
-  app: voucherApp,
   description: z.string().max(500).optional(),
   type: campaignType,
   currency: z.string().length(3),

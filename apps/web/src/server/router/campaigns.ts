@@ -66,7 +66,7 @@ const create = os.campaigns.create
         validationRuleId: input.validationRuleId ?? null,
         perUserRedemptionLimit: input.perUserRedemptionLimit ?? null,
         autoApply: input.autoApply ?? false,
-        metadata: { ...(input.metadata ?? {}), app: input.app },
+        metadata: input.metadata ?? {},
       })
       .returning();
     if (!row) throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Insert failed" });
@@ -128,7 +128,7 @@ const createPromotion = os.campaigns.createPromotion
           },
           perUserRedemptionLimit: input.perUserRedemptionLimit ?? 1,
           voucherCount: 1,
-          metadata: { surface: "ghanem_promotion", app: input.app },
+          metadata: { surface: "ghanem_promotion" },
         })
         .returning();
       if (!campaign) {
@@ -148,7 +148,7 @@ const createPromotion = os.campaigns.createPromotion
           perUserRedemptionLimit: input.perUserRedemptionLimit ?? 1,
           startDate: input.startDate ? new Date(input.startDate) : null,
           endDate: input.endDate ? new Date(input.endDate) : null,
-          metadata: { type: "promo", app: input.app },
+          metadata: { type: "promo" },
         })
         .returning();
       if (!voucher) {
@@ -192,20 +192,7 @@ const update = os.campaigns.update
       patch.perUserRedemptionLimit = inputPatch.perUserRedemptionLimit ?? null;
     }
     if (inputPatch.autoApply !== undefined) patch.autoApply = inputPatch.autoApply;
-    // Metadata is merged, not replaced: a partial patch must not silently drop `app` (or any
-    // other key) and leave the campaign's future codes untagged and unredeemable by both apps.
-    if (inputPatch.metadata !== undefined || inputPatch.app !== undefined) {
-      const existing = await db().query.campaign.findFirst({
-        where: and(eq(schema.campaign.id, input.params.id), isNull(schema.campaign.deletedAt)),
-        columns: { metadata: true },
-      });
-      if (!existing) throw new ORPCError("NOT_FOUND", { message: "Campaign not found" });
-      patch.metadata = {
-        ...existing.metadata,
-        ...(inputPatch.metadata ?? {}),
-        ...(inputPatch.app !== undefined ? { app: inputPatch.app } : {}),
-      };
-    }
+    if (inputPatch.metadata !== undefined) patch.metadata = inputPatch.metadata;
 
     const [row] = await db()
       .update(schema.campaign)

@@ -157,7 +157,6 @@ export interface VoucherRow extends Record<string, unknown> {
   startDate: Date | null;
   endDate: Date | null;
   customerId: string | null;
-  metadata: Record<string, unknown>;
   priority: number;
   exclusive: boolean;
   deletedAt: Date | null;

@@ -685,11 +685,6 @@ campaigns
     ] as const),
   )
   .requiredOption("--currency <iso>", "ISO 4217 currency")
-  .requiredOption(
-    "--app <app>",
-    "Owning app: ghanem | muder",
-    enumOption(["ghanem", "muder"] as const),
-  )
   .option("--description <text>", "Description")
   .option("--timezone <tz>", "Timezone")
   .option("--start-date <iso>", "Start date ISO string")
@@ -706,7 +701,6 @@ campaigns
       name: string;
       type: ProcedureInput<Client["campaigns"]["create"]>["type"];
       currency: string;
-      app: ProcedureInput<Client["campaigns"]["create"]>["app"];
       description?: string;
       timezone?: string;
       startDate?: string;
@@ -730,7 +724,6 @@ campaigns
           name: opts.name,
           type: opts.type,
           currency: opts.currency,
-          app: opts.app,
           description: opts.description,
           timezone: opts.timezone,
           startDate: opts.startDate,

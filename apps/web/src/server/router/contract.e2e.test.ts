@@ -103,7 +103,7 @@ describe.skipIf(!enabled)("SDK contract e2e", () => {
       fetch: fakeFetch,
     });
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: `e2e-${Date.now()}`,
       type: "DISCOUNT",
       currency: "USD",

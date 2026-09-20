@@ -31,7 +31,7 @@ describe.skipIf(!E2E_ENABLED)("promotions tiers + qualification", () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-promo"),
       type: "PROMOTION",
       currency: "USD",
@@ -103,25 +103,25 @@ describe.skipIf(!E2E_ENABLED)("promotions tiers + qualification", () => {
       rule: { ">=": [{ var: "order.amount" }, 10_000] },
     });
 
-    const draftCampaign = await client.campaigns.create({ app: "ghanem",
+    const draftCampaign = await client.campaigns.create({
       name: randomId("camp-promo-draft"),
       type: "PROMOTION",
       currency: "USD",
       autoApply: true,
     });
-    const activeCampaign = await client.campaigns.create({ app: "ghanem",
+    const activeCampaign = await client.campaigns.create({
       name: randomId("camp-promo-active"),
       type: "PROMOTION",
       currency: "USD",
       autoApply: true,
     });
-    const eurCampaign = await client.campaigns.create({ app: "ghanem",
+    const eurCampaign = await client.campaigns.create({
       name: randomId("camp-promo-eur"),
       type: "PROMOTION",
       currency: "EUR",
       autoApply: true,
     });
-    const futureCampaign = await client.campaigns.create({ app: "ghanem",
+    const futureCampaign = await client.campaigns.create({
       name: randomId("camp-promo-future"),
       type: "PROMOTION",
       currency: "USD",
@@ -223,7 +223,7 @@ describe.skipIf(!E2E_ENABLED)("promotions tiers + qualification", () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-promo-exclusive"),
       type: "PROMOTION",
       currency: "USD",
