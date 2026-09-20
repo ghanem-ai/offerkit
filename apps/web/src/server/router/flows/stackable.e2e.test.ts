@@ -46,7 +46,7 @@ describe.skipIf(!E2E_ENABLED)("stackable redemption", () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({
+    const campaign = await client.campaigns.create({ app: "ghanem",
       name: randomId("camp-stack"),
       type: "DISCOUNT",
       currency: "USD",
@@ -91,7 +91,7 @@ describe.skipIf(!E2E_ENABLED)("stackable redemption", () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const discCampaign = await client.campaigns.create({
+    const discCampaign = await client.campaigns.create({ app: "ghanem",
       name: randomId("camp-stack-disc"),
       type: "DISCOUNT",
       currency: "USD",
@@ -100,7 +100,7 @@ describe.skipIf(!E2E_ENABLED)("stackable redemption", () => {
       params: { id: discCampaign.id },
       body: { patch: { status: "active" } },
     });
-    const gcCampaign = await client.campaigns.create({
+    const gcCampaign = await client.campaigns.create({ app: "ghanem",
       name: randomId("camp-stack-gc"),
       type: "GIFT_VOUCHERS",
       currency: "USD",

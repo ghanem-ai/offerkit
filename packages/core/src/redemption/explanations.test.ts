@@ -17,6 +17,7 @@ const baseVoucher: VoucherRow = {
   startDate: null,
   endDate: null,
   customerId: null,
+  metadata: {},
   priority: 0,
   exclusive: false,
   deletedAt: null,

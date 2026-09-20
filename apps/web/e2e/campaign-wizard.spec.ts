@@ -9,6 +9,8 @@ test.describe("promotion code generation", () => {
     await page.goto("/campaigns/new");
     await page.waitForLoadState("networkidle");
     await page.getByLabel("Name", { exact: true }).fill(name);
+    await page.getByRole("combobox", { name: "App" }).click();
+    await page.getByRole("option", { name: "Ghanem" }).click();
     await page.getByLabel(/reward amount \(sar\)/i).fill("10.00");
 
     const submit = page.getByRole("button", { name: /create promotion/i });

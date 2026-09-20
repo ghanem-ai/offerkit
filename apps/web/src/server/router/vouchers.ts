@@ -3,6 +3,7 @@ import { and, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
 import { schema } from "@offerkit/db";
 import type { VoucherDiscount } from "@offerkit/db/schema";
 import { contract } from "@offerkit/contract/router";
+import { voucherApp } from "@offerkit/contract";
 import { generateUniqueCodes, BULK_INLINE_THRESHOLD } from "@offerkit/core/codes";
 import { emitEvent } from "@offerkit/core/events";
 import { enqueueJob } from "@offerkit/core/jobs";
@@ -168,6 +169,26 @@ const create = os.vouchers.create
       giftBalance: input.giftBalance,
     });
 
+    const campaignApp = campaign?.metadata?.["app"];
+    const metadata: Record<string, unknown> = { ...(input.metadata ?? {}) };
+    // An explicit metadata.app wins over the campaign's; the campaign only fills the gap. Ghanem
+    // and Muder mint referral codes from the same campaign, so a code's app cannot be required to
+    // match the campaign it hangs off. The cost is that nothing stops a code being tagged for one
+    // app inside another app's promotion — accepted deliberately.
+    if (metadata["app"] === undefined && typeof campaignApp === "string" && campaignApp) {
+      metadata["app"] = campaignApp;
+    }
+    // Whatever the source, the code must end up with a real app. Otherwise it is created looking
+    // fine and refused by both backends — dead on arrival with no error at creation time.
+    const app = voucherApp.safeParse(metadata["app"]);
+    if (!app.success) {
+      throw new ORPCError("BAD_REQUEST", {
+        message:
+          "Voucher needs an app: attach it to a campaign that has one, or set metadata.app to \"ghanem\" or \"muder\"",
+      });
+    }
+    metadata["app"] = app.data;
+
     let code = input.code;
     if (!code) {
       let codeConfig: Record<string, unknown> = {};
@@ -196,7 +217,7 @@ const create = os.vouchers.create
           startDate: input.startDate ? new Date(input.startDate) : null,
           endDate: input.endDate ? new Date(input.endDate) : null,
           customerId: input.customerId ?? null,
-          metadata: input.metadata ?? {},
+          metadata,
         })
         .returning();
       if (!v) throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Insert failed" });

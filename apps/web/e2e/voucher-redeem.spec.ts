@@ -11,6 +11,8 @@ test.describe("promotion flow from dashboard", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByLabel("Type", { exact: true })).toHaveCount(0);
     await page.getByLabel("Name", { exact: true }).fill(promotionName);
+    await page.getByRole("combobox", { name: "App" }).click();
+    await page.getByRole("option", { name: "Ghanem" }).click();
     await page.getByLabel("Code", { exact: true }).fill(promotionCode);
     await page.getByLabel(/reward amount \(sar\)/i).fill("25.00");
     await page.getByLabel(/total redemptions/i).fill("2");

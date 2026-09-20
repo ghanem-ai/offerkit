@@ -40,7 +40,7 @@ describe.skipIf(!E2E_ENABLED)("validation rules CRUD + attach to campaign", () =
     expect(rule.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(rule.appliesTo).toBe("voucher");
 
-    const campaign = await client.campaigns.create({
+    const campaign = await client.campaigns.create({ app: "ghanem",
       name: randomId("camp-rule"),
       type: "DISCOUNT",
       currency: "USD",

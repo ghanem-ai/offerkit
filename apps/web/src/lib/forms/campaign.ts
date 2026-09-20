@@ -51,10 +51,18 @@ function commonCampaignInput(state: CampaignFormState) {
   };
 }
 
-export function campaignFormToCreateInput(state: CampaignFormState): CampaignCreateInput {
+/**
+ * `app` is passed explicitly rather than held in form state: the campaign form only edits existing
+ * campaigns, and a campaign's owning app is set once at creation and changed deliberately.
+ */
+export function campaignFormToCreateInput(
+  state: CampaignFormState,
+  app: CampaignCreateInput["app"],
+): CampaignCreateInput {
   return campaignCreateInput.parse({
     ...commonCampaignInput(state),
     type: state.type,
+    app,
   });
 }
 
