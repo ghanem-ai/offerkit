@@ -54,6 +54,7 @@ describe.skipIf(!E2E_ENABLED)("Idempotency-Key header", () => {
       name: randomId("camp-idem"),
       type: "DISCOUNT" as const,
       currency: "USD",
+      app: "ghanem" as const,
     };
 
     const responses = await Promise.all(
@@ -190,7 +191,7 @@ describe.skipIf(!E2E_ENABLED)("Idempotency-Key header", () => {
 
     const first = await rawRequest(
       buildRequest(
-        { name: randomId("camp-a"), type: "DISCOUNT" as const, currency: "USD" },
+        { name: randomId("camp-a"), type: "DISCOUNT" as const, currency: "USD", app: "ghanem" as const },
         key,
         token,
       ),
@@ -199,7 +200,7 @@ describe.skipIf(!E2E_ENABLED)("Idempotency-Key header", () => {
 
     const conflict = await rawRequest(
       buildRequest(
-        { name: randomId("camp-b"), type: "DISCOUNT" as const, currency: "USD" },
+        { name: randomId("camp-b"), type: "DISCOUNT" as const, currency: "USD", app: "ghanem" as const },
         key,
         token,
       ),

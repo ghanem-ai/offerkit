@@ -31,7 +31,7 @@ describe.skipIf(!E2E_ENABLED)("loyalty: enroll → earn → tier → redeem → 
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({
+    const campaign = await client.campaigns.create({ app: "ghanem",
       name: randomId("camp-loy"),
       type: "LOYALTY_PROGRAM",
       currency: "USD",
@@ -111,7 +111,7 @@ describe.skipIf(!E2E_ENABLED)("loyalty: enroll → earn → tier → redeem → 
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({
+    const campaign = await client.campaigns.create({ app: "ghanem",
       name: randomId("camp-loy-admin"),
       type: "LOYALTY_PROGRAM",
       currency: "USD",

@@ -36,7 +36,7 @@ describe.skipIf(!E2E_ENABLED)("audit log", () => {
     const client = makeClient(token);
 
     // Drive mutations across 3 domains.
-    const camp = await client.campaigns.create({
+    const camp = await client.campaigns.create({ app: "ghanem",
       name: randomId("camp-aud"),
       type: "DISCOUNT",
       currency: "USD",

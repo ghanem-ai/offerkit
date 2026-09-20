@@ -66,7 +66,7 @@ const create = os.campaigns.create
         validationRuleId: input.validationRuleId ?? null,
         perUserRedemptionLimit: input.perUserRedemptionLimit ?? null,
         autoApply: input.autoApply ?? false,
-        metadata: input.metadata ?? {},
+        metadata: { ...(input.metadata ?? {}), app: input.app },
       })
       .returning();
     if (!row) throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Insert failed" });
@@ -192,7 +192,20 @@ const update = os.campaigns.update
       patch.perUserRedemptionLimit = inputPatch.perUserRedemptionLimit ?? null;
     }
     if (inputPatch.autoApply !== undefined) patch.autoApply = inputPatch.autoApply;
-    if (inputPatch.metadata !== undefined) patch.metadata = inputPatch.metadata;
+    // Metadata is merged, not replaced: a partial patch must not silently drop `app` (or any
+    // other key) and leave the campaign's future codes untagged and unredeemable by both apps.
+    if (inputPatch.metadata !== undefined || inputPatch.app !== undefined) {
+      const existing = await db().query.campaign.findFirst({
+        where: and(eq(schema.campaign.id, input.params.id), isNull(schema.campaign.deletedAt)),
+        columns: { metadata: true },
+      });
+      if (!existing) throw new ORPCError("NOT_FOUND", { message: "Campaign not found" });
+      patch.metadata = {
+        ...existing.metadata,
+        ...(inputPatch.metadata ?? {}),
+        ...(inputPatch.app !== undefined ? { app: inputPatch.app } : {}),
+      };
+    }
 
     const [row] = await db()
       .update(schema.campaign)

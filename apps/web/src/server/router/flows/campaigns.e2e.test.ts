@@ -133,12 +133,79 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
     expect(extra.metadata).toMatchObject({ app: "muder" });
   });
 
+  it("refuses a code whose app contradicts its campaign", async () => {
+    if (!token) throw new Error("setup failed");
+    const client = makeClient(token);
+    const created = await client.campaigns.createPromotion({
+      name: randomId("muder-promotion"),
+      app: "muder",
+      code: randomId("MUDER").toUpperCase(),
+      amount: 1_000,
+    });
+
+    await expect(
+      client.vouchers.create({
+        campaignId: created.campaign.id,
+        type: "DISCOUNT",
+        discount: { type: "AMOUNT", amount: 1_000 },
+        metadata: { app: "ghanem" },
+      }),
+    ).rejects.toThrow(/does not match campaign app/);
+  });
+
+  it("refuses a campaign-less code that names no app, and accepts one that does", async () => {
+    if (!token) throw new Error("setup failed");
+    const client = makeClient(token);
+
+    // No campaign to inherit from and no app: this would mint a code both backends reject.
+    await expect(
+      client.vouchers.create({
+        type: "DISCOUNT",
+        discount: { type: "AMOUNT", amount: 1_000 },
+      }),
+    ).rejects.toThrow(/needs an app/);
+
+    const tagged = await client.vouchers.create({
+      type: "DISCOUNT",
+      discount: { type: "AMOUNT", amount: 1_000 },
+      metadata: { app: "muder" },
+    });
+    expect(tagged.metadata).toMatchObject({ app: "muder" });
+  });
+
+  it("keeps the app tag when a patch sends unrelated metadata", async () => {
+    if (!token) throw new Error("setup failed");
+    const client = makeClient(token);
+    const created = await client.campaigns.create({
+      app: "muder",
+      name: randomId("camp"),
+      type: "DISCOUNT",
+      currency: "SAR",
+      metadata: { note: "before" },
+    });
+    expect(created.metadata).toMatchObject({ app: "muder", note: "before" });
+
+    // A partial patch must merge, not replace — otherwise `app` is silently dropped and every
+    // code added afterwards comes out untagged and unredeemable by both apps.
+    const patched = await client.campaigns.update({
+      params: { id: created.id },
+      body: { patch: { metadata: { note: "after" } } },
+    });
+    expect(patched.metadata).toMatchObject({ app: "muder", note: "after" });
+
+    const retagged = await client.campaigns.update({
+      params: { id: created.id },
+      body: { patch: { app: "ghanem" } },
+    });
+    expect(retagged.metadata).toMatchObject({ app: "ghanem", note: "after" });
+  });
+
   it("create → update → list (search) → soft-delete excludes from list", async () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
     const name = randomId("camp");
-    const created = await client.campaigns.create({
+    const created = await client.campaigns.create({ app: "ghanem",
       name,
       type: "DISCOUNT",
       currency: "USD",
@@ -171,12 +238,12 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
     const client = makeClient(token);
     const name = randomId("typed-camp");
 
-    const discount = await client.campaigns.create({
+    const discount = await client.campaigns.create({ app: "ghanem",
       name: `${name}-discount`,
       type: "DISCOUNT",
       currency: "SAR",
     });
-    const referral = await client.campaigns.create({
+    const referral = await client.campaigns.create({ app: "ghanem",
       name: `${name}-referral`,
       type: "REFERRAL_PROGRAM",
       currency: "SAR",
@@ -201,7 +268,7 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
       appliesTo: "voucher",
       rule: { ">=": [{ var: "order.amount" }, 100] },
     });
-    const created = await client.campaigns.create({
+    const created = await client.campaigns.create({ app: "ghanem",
       name: randomId("camp-full"),
       type: "DISCOUNT",
       currency: "USD",

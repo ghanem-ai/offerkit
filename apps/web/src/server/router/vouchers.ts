@@ -3,6 +3,7 @@ import { and, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
 import { schema } from "@offerkit/db";
 import type { VoucherDiscount } from "@offerkit/db/schema";
 import { contract } from "@offerkit/contract/router";
+import { voucherApp } from "@offerkit/contract";
 import { generateUniqueCodes, BULK_INLINE_THRESHOLD } from "@offerkit/core/codes";
 import { emitEvent } from "@offerkit/core/events";
 import { enqueueJob } from "@offerkit/core/jobs";
@@ -170,8 +171,27 @@ const create = os.vouchers.create
 
     const campaignApp = campaign?.metadata?.["app"];
     const metadata: Record<string, unknown> = { ...(input.metadata ?? {}) };
-    if (typeof campaignApp === "string" && campaignApp && metadata["app"] === undefined) {
+    if (typeof campaignApp === "string" && campaignApp) {
+      const requestedApp = metadata["app"];
+      // A code must belong to the same app as its campaign. Allowing an override would put a
+      // Ghanem-tagged code inside a Muder promotion, which is exactly the leak the tag prevents.
+      if (requestedApp !== undefined && requestedApp !== campaignApp) {
+        throw new ORPCError("BAD_REQUEST", {
+          message: `Voucher app "${String(requestedApp)}" does not match campaign app "${campaignApp}"`,
+        });
+      }
       metadata["app"] = campaignApp;
+    } else {
+      // No campaign to inherit from. Fail loudly rather than minting a code that carries no app
+      // tag — both backends refuse such a code, so it would look created and be dead on arrival.
+      const parsed = voucherApp.safeParse(metadata["app"]);
+      if (!parsed.success) {
+        throw new ORPCError("BAD_REQUEST", {
+          message:
+            "Voucher needs an app: attach it to a campaign that has one, or set metadata.app to \"ghanem\" or \"muder\"",
+        });
+      }
+      metadata["app"] = parsed.data;
     }
 
     let code = input.code;

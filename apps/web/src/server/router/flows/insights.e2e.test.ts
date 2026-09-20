@@ -35,7 +35,7 @@ describe.skipIf(!E2E_ENABLED)("insights summary", () => {
     const campaigns: string[] = [];
     const codes: string[] = [];
     for (let i = 0; i < 2; i++) {
-      const camp = await client.campaigns.create({
+      const camp = await client.campaigns.create({ app: "ghanem",
         name: randomId(`camp-ins-${String(i)}`),
         type: "DISCOUNT",
         currency: "USD",
