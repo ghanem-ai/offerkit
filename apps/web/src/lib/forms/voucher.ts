@@ -1,6 +1,5 @@
 import { z } from "zod";
 import {
-  voucherApp,
   voucherCreateInput,
   voucherDiscount,
   voucherType,
@@ -38,13 +37,9 @@ const emptyOrMaxDiscount = z.union([
   voucherDiscount.shape.maxDiscountAmount.unwrap(),
 ]);
 
-/** Empty means "inherit from the campaign"; required by the form when no campaign is attached. */
-const emptyOrApp = z.union([z.literal(""), voucherApp]);
-
 const voucherFormFields = z.object({
   code: emptyOrCode,
   campaignId: emptyOrCampaignId,
-  app: emptyOrApp,
   type: voucherType,
   discountKind: voucherDiscount.shape.type,
   discountValue: z.number().int().min(0),
@@ -64,14 +59,6 @@ const voucherFormFields = z.object({
 function withVoucherRules(mode: "create" | "edit", timeZone?: string) {
   return voucherFormFields.superRefine((value, context) => {
     validateDateRange(value, context, timeZone);
-
-    if (mode === "create" && !value.campaignId && !value.app) {
-      context.addIssue({
-        code: "custom",
-        path: ["app"],
-        message: "Select the app this code belongs to, or attach it to a promotion",
-      });
-    }
 
     if (value.customerId && value.customerExternalId) {
       context.addIssue({
@@ -160,8 +147,6 @@ export function voucherFormToCreateInput(
     code: state.code || undefined,
     campaignId: state.campaignId || undefined,
     type: state.type,
-    // Omitted when a campaign is attached: the server inherits the campaign's app.
-    metadata: state.app ? { app: state.app } : undefined,
   });
 }
 

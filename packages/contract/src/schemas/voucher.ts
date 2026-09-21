@@ -2,10 +2,6 @@ import { z } from "zod";
 
 export const voucherType = z.enum(["DISCOUNT", "GIFT_CARD"]);
 
-/** Consumer app a promotion belongs to. Stored as `metadata.app` on campaign and voucher. */
-export const voucherApp = z.enum(["ghanem", "muder"]);
-export type VoucherApp = z.infer<typeof voucherApp>;
-
 export const voucherDiscount = z.object({
   type: z.enum(["AMOUNT", "PERCENTAGE"]),
   amount: z.number().int().min(0).optional(),

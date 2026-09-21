@@ -31,7 +31,7 @@ describe.skipIf(!E2E_ENABLED)("redemption flows", () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-disc"),
       type: "DISCOUNT",
       currency: "USD",
@@ -76,7 +76,7 @@ describe.skipIf(!E2E_ENABLED)("redemption flows", () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-gc"),
       type: "GIFT_VOUCHERS",
       currency: "USD",

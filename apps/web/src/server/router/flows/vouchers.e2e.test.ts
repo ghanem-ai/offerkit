@@ -31,7 +31,7 @@ describe.skipIf(!E2E_ENABLED)("vouchers bulk + CRUD + transactions", () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-bulk-inline"),
       type: "DISCOUNT",
       currency: "USD",
@@ -53,7 +53,7 @@ describe.skipIf(!E2E_ENABLED)("vouchers bulk + CRUD + transactions", () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-bulk-async"),
       type: "DISCOUNT",
       currency: "USD",
@@ -74,7 +74,7 @@ describe.skipIf(!E2E_ENABLED)("vouchers bulk + CRUD + transactions", () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-bulk-empty"),
       type: "DISCOUNT",
       currency: "USD",
@@ -92,7 +92,7 @@ describe.skipIf(!E2E_ENABLED)("vouchers bulk + CRUD + transactions", () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-gc-empty"),
       type: "GIFT_VOUCHERS",
       currency: "USD",
@@ -118,7 +118,7 @@ describe.skipIf(!E2E_ENABLED)("vouchers bulk + CRUD + transactions", () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-gc-type"),
       type: "GIFT_VOUCHERS",
       currency: "USD",
@@ -138,7 +138,7 @@ describe.skipIf(!E2E_ENABLED)("vouchers bulk + CRUD + transactions", () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-crud"),
       type: "DISCOUNT",
       currency: "USD",
@@ -172,7 +172,7 @@ describe.skipIf(!E2E_ENABLED)("vouchers bulk + CRUD + transactions", () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-recreate"),
       type: "DISCOUNT",
       currency: "USD",
@@ -211,7 +211,7 @@ describe.skipIf(!E2E_ENABLED)("vouchers bulk + CRUD + transactions", () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-gc"),
       type: "GIFT_VOUCHERS",
       currency: "USD",
@@ -241,7 +241,7 @@ describe.skipIf(!E2E_ENABLED)("vouchers bulk + CRUD + transactions", () => {
     const customer = await client.customers.create({
       email: `${randomId("voucher-customer")}@example.com`,
     });
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-voucher-generated"),
       type: "DISCOUNT",
       currency: "USD",
@@ -299,7 +299,7 @@ describe.skipIf(!E2E_ENABLED)("vouchers bulk + CRUD + transactions", () => {
       }),
     ).rejects.toThrow(/campaign not found/i);
 
-    const giftCampaign = await client.campaigns.create({ app: "ghanem",
+    const giftCampaign = await client.campaigns.create({
       name: randomId("camp-gift-bulk"),
       type: "GIFT_VOUCHERS",
       currency: "USD",

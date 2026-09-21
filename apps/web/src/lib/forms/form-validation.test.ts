@@ -34,7 +34,6 @@ const campaign: CampaignFormState = {
 const voucher: VoucherFormState = {
   code: "SUMMER10",
   campaignId: "11111111-1111-4111-8111-111111111111",
-  app: "",
   type: "DISCOUNT",
   discountKind: "AMOUNT",
   discountValue: 1_000,
@@ -90,11 +89,10 @@ describe("campaign form validation", () => {
   });
 
   it("transforms create and edit values to contract payloads", () => {
-    const create = campaignFormToCreateInput(campaign, "ghanem");
+    const create = campaignFormToCreateInput(campaign);
     expect(create).toMatchObject({
       name: campaign.name,
       type: "DISCOUNT",
-      app: "ghanem",
       currency: "USD",
       perUserRedemptionLimit: 2,
       codeConfig: { length: 8, prefix: "SUMMER-" },
@@ -237,12 +235,7 @@ describe("timezone-aware date conversion", () => {
   });
 
   it("rejects an invalid campaign timezone at the contract boundary", () => {
-    const base = {
-      name: "Summer sale",
-      type: "DISCOUNT" as const,
-      currency: "USD",
-      app: "ghanem" as const,
-    };
+    const base = { name: "Summer sale", type: "DISCOUNT" as const, currency: "USD" };
     expect(campaignCreateInput.safeParse({ ...base, timezone: "Bogus/Zone" }).success).toBe(false);
     expect(campaignCreateInput.safeParse({ ...base, timezone: "Asia/Riyadh" }).success).toBe(true);
   });
@@ -278,15 +271,12 @@ describe("timezone-aware date conversion", () => {
   });
 
   it("uses the campaign timezone in campaign payloads", () => {
-    const input = campaignFormToCreateInput(
-      {
-        ...campaign,
-        timezone: "Asia/Riyadh",
-        startDate: "2026-07-29T10:30",
-        endDate: "2026-07-29T11:30",
-      },
-      "ghanem",
-    );
+    const input = campaignFormToCreateInput({
+      ...campaign,
+      timezone: "Asia/Riyadh",
+      startDate: "2026-07-29T10:30",
+      endDate: "2026-07-29T11:30",
+    });
 
     expect(input.startDate).toBe("2026-07-29T07:30:00.000Z");
     expect(input.endDate).toBe("2026-07-29T08:30:00.000Z");

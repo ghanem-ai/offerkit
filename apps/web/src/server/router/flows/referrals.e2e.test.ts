@@ -32,7 +32,7 @@ describe.skipIf(!E2E_ENABLED)("referrals: program → issue → convert → both
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-ref-dupe"),
       type: "REFERRAL_PROGRAM",
       currency: "USD",
@@ -75,7 +75,7 @@ describe.skipIf(!E2E_ENABLED)("referrals: program → issue → convert → both
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-ref-recreate"),
       type: "REFERRAL_PROGRAM",
       currency: "USD",
@@ -125,7 +125,7 @@ describe.skipIf(!E2E_ENABLED)("referrals: program → issue → convert → both
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-ref"),
       type: "REFERRAL_PROGRAM",
       currency: "USD",

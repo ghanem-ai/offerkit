@@ -35,7 +35,6 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
 
     const created = await client.campaigns.createPromotion({
       name,
-      app: "ghanem",
       code,
       amount: 2_500,
       status: "active",
@@ -51,7 +50,6 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
       currency: "SAR",
       timezone: "Asia/Riyadh",
       voucherCount: 1,
-      metadata: { surface: "ghanem_promotion", app: "ghanem" },
     });
     expect(created.voucher).toMatchObject({
       code,
@@ -60,7 +58,7 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
       discount: { type: "AMOUNT", amount: 2_500 },
       redemptionLimit: 10,
       perUserRedemptionLimit: 1,
-      metadata: { type: "promo", app: "ghanem" },
+      metadata: { type: "promo" },
     });
 
     const visibleCodes = await client.vouchers.list({
@@ -70,15 +68,10 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
     });
     expect(visibleCodes.data.map((voucher) => voucher.id)).toContain(created.voucher.id);
 
-    const ghanemCustomer = randomId("customer");
-    await client.customers.upsert({
-      externalId: ghanemCustomer,
-      metadata: { app: "ghanem" },
-    });
     const validation = await client.vouchers.validate({
       params: { code },
       body: {
-        customerExternalId: ghanemCustomer,
+        customerExternalId: randomId("customer"),
         order: { amount: 2_500, currency: "SAR" },
       },
     });
@@ -90,7 +83,7 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
     const redemption = await client.vouchers.redeem({
       params: { code },
       body: {
-        customerExternalId: ghanemCustomer,
+        customerExternalId: randomId("customer"),
         order: { amount: 2_500, currency: "SAR" },
         idempotencyKey: randomId("promotion-redemption"),
       },
@@ -100,7 +93,6 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
     await expect(
       client.campaigns.createPromotion({
         name: `${name}-duplicate`,
-        app: "ghanem",
         code,
         amount: 2_500,
       }),
@@ -113,134 +105,12 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
     expect(duplicateCampaign.data).toHaveLength(0);
   });
 
-  it("tags a promotion and any code added to it later with the campaign's app", async () => {
-    if (!token) throw new Error("setup failed");
-    const client = makeClient(token);
-    const created = await client.campaigns.createPromotion({
-      name: randomId("muder-promotion"),
-      app: "muder",
-      code: randomId("MUDER").toUpperCase(),
-      amount: 1_000,
-    });
-    expect(created.voucher.metadata).toMatchObject({ app: "muder" });
-
-    // A code added to the promotion later inherits the campaign's app.
-    const extra = await client.vouchers.create({
-      campaignId: created.campaign.id,
-      type: "DISCOUNT",
-      discount: { type: "AMOUNT", amount: 1_000 },
-    });
-    expect(extra.metadata).toMatchObject({ app: "muder" });
-  });
-
-  it("tags a Muder referral code muder even though the shared campaign is ghanem", async () => {
-    if (!token) throw new Error("setup failed");
-    const client = makeClient(token);
-
-    // The shared referral campaign as migration 0024 leaves it: tagged ghanem.
-    const campaign = await client.campaigns.create({
-      app: "ghanem",
-      name: randomId("referral"),
-      type: "DISCOUNT",
-      currency: "SAR",
-    });
-    expect(campaign.metadata).toMatchObject({ app: "ghanem" });
-
-    // Exactly the payload muder-api's CreateReferralVoucherCommand sends.
-    const muderCode = await client.vouchers.create({
-      campaignId: campaign.id,
-      type: "DISCOUNT",
-      discount: { type: "AMOUNT", amount: 2_500 },
-      perUserRedemptionLimit: 1,
-      metadata: { type: "referral", user_id: randomId("muder-user"), app: "muder" },
-    });
-    expect(muderCode.metadata).toMatchObject({ type: "referral", app: "muder" });
-
-    // api-v2's payload against the same campaign still comes out ghanem.
-    const ghanemCode = await client.vouchers.create({
-      campaignId: campaign.id,
-      type: "DISCOUNT",
-      discount: { type: "AMOUNT", amount: 2_500 },
-      perUserRedemptionLimit: 1,
-      metadata: { type: "referral", user_id: randomId("ghanem-user"), app: "ghanem" },
-    });
-    expect(ghanemCode.metadata).toMatchObject({ type: "referral", app: "ghanem" });
-  });
-
-  it("lets a code override its campaign's app", async () => {
-    if (!token) throw new Error("setup failed");
-    const client = makeClient(token);
-    const created = await client.campaigns.createPromotion({
-      name: randomId("muder-promotion"),
-      app: "muder",
-      code: randomId("MUDER").toUpperCase(),
-      amount: 1_000,
-    });
-
-    // The campaign's app is a default, not a constraint: Ghanem and Muder mint referral codes
-    // from one campaign, so a code must be able to name an app its campaign does not carry.
-    const overridden = await client.vouchers.create({
-      campaignId: created.campaign.id,
-      type: "DISCOUNT",
-      discount: { type: "AMOUNT", amount: 1_000 },
-      metadata: { app: "ghanem" },
-    });
-    expect(overridden.metadata).toMatchObject({ app: "ghanem" });
-  });
-
-  it("refuses a campaign-less code that names no app, and accepts one that does", async () => {
-    if (!token) throw new Error("setup failed");
-    const client = makeClient(token);
-
-    // No campaign to inherit from and no app: this would mint a code both backends reject.
-    await expect(
-      client.vouchers.create({
-        type: "DISCOUNT",
-        discount: { type: "AMOUNT", amount: 1_000 },
-      }),
-    ).rejects.toThrow(/needs an app/);
-
-    const tagged = await client.vouchers.create({
-      type: "DISCOUNT",
-      discount: { type: "AMOUNT", amount: 1_000 },
-      metadata: { app: "muder" },
-    });
-    expect(tagged.metadata).toMatchObject({ app: "muder" });
-  });
-
-  it("keeps the app tag when a patch sends unrelated metadata", async () => {
-    if (!token) throw new Error("setup failed");
-    const client = makeClient(token);
-    const created = await client.campaigns.create({
-      app: "muder",
-      name: randomId("camp"),
-      type: "DISCOUNT",
-      currency: "SAR",
-      metadata: { note: "before" },
-    });
-    expect(created.metadata).toMatchObject({ app: "muder", note: "before" });
-
-    // A partial patch must merge, not replace — otherwise `app` is silently dropped and every
-    // code added afterwards comes out untagged and unredeemable by both apps.
-    const patched = await client.campaigns.update({
-      params: { id: created.id },
-      body: { patch: { metadata: { note: "after" } } },
-    });
-    expect(patched.metadata).toMatchObject({ app: "muder", note: "after" });
-
-    const retagged = await client.campaigns.update({
-      params: { id: created.id },
-      body: { patch: { app: "ghanem" } },
-    });
-    expect(retagged.metadata).toMatchObject({ app: "ghanem", note: "after" });
-  });
-
   it("create → update → list (search) → soft-delete excludes from list", async () => {
     if (!token) throw new Error("setup failed");
     const client = makeClient(token);
 
     const name = randomId("camp");
-    const created = await client.campaigns.create({ app: "ghanem",
+    const created = await client.campaigns.create({
       name,
       type: "DISCOUNT",
       currency: "USD",
@@ -273,12 +143,12 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
     const client = makeClient(token);
     const name = randomId("typed-camp");
 
-    const discount = await client.campaigns.create({ app: "ghanem",
+    const discount = await client.campaigns.create({
       name: `${name}-discount`,
       type: "DISCOUNT",
       currency: "SAR",
     });
-    const referral = await client.campaigns.create({ app: "ghanem",
+    const referral = await client.campaigns.create({
       name: `${name}-referral`,
       type: "REFERRAL_PROGRAM",
       currency: "SAR",
@@ -303,7 +173,7 @@ describe.skipIf(!E2E_ENABLED)("campaigns CRUD", () => {
       appliesTo: "voucher",
       rule: { ">=": [{ var: "order.amount" }, 100] },
     });
-    const created = await client.campaigns.create({ app: "ghanem",
+    const created = await client.campaigns.create({
       name: randomId("camp-full"),
       type: "DISCOUNT",
       currency: "USD",

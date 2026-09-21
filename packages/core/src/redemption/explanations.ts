@@ -17,7 +17,6 @@ export function failureExplanation(
     | "perUserRedemptionLimit"
     | "giftBalance"
     | "type"
-    | "metadata"
   >,
   details: Record<string, string | number | boolean | null> = {},
 ): RedemptionExplanation {
