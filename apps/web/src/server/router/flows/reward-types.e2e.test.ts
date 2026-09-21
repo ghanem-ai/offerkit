@@ -50,7 +50,7 @@ describe.skipIf(!E2E_ENABLED)("custom reward types CRUD + voucher payload roundt
     expect(updated.description).toBe("Waive shipping for these lanes");
 
     // Reference the reward type from a voucher's customRewards array.
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("camp-rt"),
       type: "DISCOUNT",
       currency: "USD",

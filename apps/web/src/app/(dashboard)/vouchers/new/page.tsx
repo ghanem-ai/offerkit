@@ -80,7 +80,6 @@ export default function NewVoucherPage() {
         initial={{
           code: "",
           campaignId,
-          app: "",
           type: campaign?.type === "GIFT_VOUCHERS" ? "GIFT_CARD" : "DISCOUNT",
           discountKind: "AMOUNT",
           discountValue: 1000,

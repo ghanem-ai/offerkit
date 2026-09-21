@@ -99,7 +99,7 @@ describe.skipIf(!E2E_ENABLED)("customers CRUD", () => {
     });
     expect(patched.email).toBe(`${externalId}.updated@example.com`);
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("customer-history"),
       type: "DISCOUNT",
       currency: "USD",

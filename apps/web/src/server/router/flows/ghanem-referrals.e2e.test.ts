@@ -35,7 +35,7 @@ describe.skipIf(!E2E_ENABLED)("Ghanem referral voucher compatibility", () => {
     const refereeA = crypto.randomUUID();
     const refereeB = crypto.randomUUID();
 
-    const campaign = await client.campaigns.create({ app: "ghanem",
+    const campaign = await client.campaigns.create({
       name: randomId("ghanem-referral"),
       type: "REFERRAL_PROGRAM",
       currency: "SAR",

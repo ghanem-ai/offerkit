@@ -154,7 +154,6 @@ export default function VoucherDetailPage({ params }: PageProps) {
   const discount = data.discount;
   const timeZone = campaign?.timezone ?? workspace?.defaultTimezone ?? "UTC";
   const initial: VoucherFormState = {
-    app: "",
     code: data.code,
     campaignId: data.campaignId ?? "",
     type: data.type,

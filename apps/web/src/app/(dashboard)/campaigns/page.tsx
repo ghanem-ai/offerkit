@@ -37,14 +37,6 @@ export default function CampaignsPage() {
       ),
     },
     {
-      id: "app",
-      header: () => <T>App</T>,
-      cell: ({ row }) => {
-        const app = row.original.metadata?.["app"];
-        return <span className="capitalize">{typeof app === "string" ? app : "—"}</span>;
-      },
-    },
-    {
       accessorKey: "status",
       header: () => <T>Status</T>,
       cell: ({ row }) => (

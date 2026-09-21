@@ -24,7 +24,6 @@ import {
 export type { VoucherFormState } from "@/lib/forms/voucher";
 
 type VoucherType = VoucherFormState["type"];
-type VoucherApp = VoucherFormState["app"];
 type DiscountKind = VoucherFormState["discountKind"];
 
 const TYPES: VoucherType[] = ["DISCOUNT", "GIFT_CARD"];
@@ -255,40 +254,6 @@ export function VoucherForm({
               </div>
             )}
           </form.Field> : null}
-          <form.Subscribe selector={(state) => state.values.campaignId}>
-            {(campaignId) =>
-              mode === "create" && !campaignId ? (
-                <form.Field name="app">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <Label htmlFor={field.name}>
-                        <T>App</T>
-                      </Label>
-                      <Select
-                        value={field.state.value}
-                        onValueChange={(v) => field.handleChange(v as VoucherApp)}
-                      >
-                        <SelectTrigger id={field.name} aria-label={gt("App")}>
-                          <SelectValue placeholder={gt("Select app")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ghanem">Ghanem</SelectItem>
-                          <SelectItem value="muder">Muder</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        <T>Only customers of this app can redeem the code.</T>
-                      </p>
-                      <FormFieldErrors
-                        errors={field.state.meta.errors}
-                        visible={field.state.meta.isTouched}
-                      />
-                    </div>
-                  )}
-                </form.Field>
-              ) : null
-            }
-          </form.Subscribe>
           {!ghanemOperatorMode ? <form.Field name="type">
             {(field) => (
               <div className="space-y-2">

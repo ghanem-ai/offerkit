@@ -8,7 +8,6 @@ export {
   codeConfig,
 } from "./schemas/campaign.ts";
 export {
-  voucherApp,
   voucherCreateInput,
   voucherDiscount,
   voucherType,
